@@ -1,0 +1,40 @@
+import type { Metadata, Viewport } from "next";
+import type { ReactNode } from "react";
+import PwaRegister from "@/components/PwaRegister";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "JARVIS — Personal Assistant",
+  description: "Your voice-driven daily AI assistant with a custom knowledge base and attitude.",
+  applicationName: "JARVIS",
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "JARVIS" },
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  other: { "mobile-web-app-capable": "yes" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#04070d",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="min-h-dvh text-slate-100 antialiased selection:bg-cyan-400/30">
+        {children}
+        <PwaRegister />
+      </body>
+    </html>
+  );
+}
