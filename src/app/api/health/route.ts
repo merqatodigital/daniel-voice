@@ -37,6 +37,7 @@ async function readSettings() {
         key: settings.openrouterKey,
         model: settings.openrouterModel,
         llmMode: settings.llmMode,
+        llmBackend: settings.llmBackend,
         ollamaUrl: settings.ollamaUrl,
         ollamaModel: settings.ollamaModel,
       })
@@ -45,17 +46,6 @@ async function readSettings() {
     return row ?? null;
   } catch {
     return null;
-  }
-}
-
-async function checkOllama(url: string): Promise<{ available: boolean; modelCount: number }> {
-  try {
-    const res = await tryFetch(`${url.replace(/\/+$/, "")}/api/tags`);
-    if (!res || !res.ok) return { available: false, modelCount: 0 };
-    const json = (await res.json()) as { models?: unknown[] };
-    return { available: true, modelCount: (json.models ?? []).length };
-  } catch {
-    return { available: false, modelCount: 0 };
   }
 }
 
@@ -73,11 +63,22 @@ async function checkCatalogue(): Promise<{ fresh: boolean; count: number }> {
 }
 
 async function checkOpenRouterUp(): Promise<boolean> {
-  const res = await tryFetch(`${OR}/models`, { method: "HEAD" });
-  if (res?.ok) return true;
-  // Some edges reject HEAD; fall back to a GET we discard.
-  const get = await tryFetch(`${OR}/models`);
-  return Boolean(get?.ok);
+  // A single bounded GET avoids a HEAD→GET retry extending the five-second cap.
+  const res = await tryFetch(`${OR}/models`);
+  return Boolean(res?.ok);
+}
+
+async function checkOllama(url: string, model: string): Promise<boolean> {
+  if (!model) return false;
+  const base = url.trim().replace(/\/+$/, "") || "http://127.0.0.1:11434";
+  const res = await tryFetch(`${base}/api/tags`);
+  if (!res?.ok) return false;
+  try {
+    const json = (await res.json()) as { models?: { name?: string; model?: string }[] };
+    return (json.models ?? []).some((item) => (item.name ?? item.model) === model);
+  } catch {
+    return false;
+  }
 }
 
 /** True when the key authenticates and has usable balance. Never leaks amounts. */
@@ -108,47 +109,55 @@ export async function GET() {
   const started = Date.now();
   const dbOk = await checkDb();
 
-  // Everything below is best-effort and runs in parallel; nothing here can
-  // throw, and the slow network probes are capped at TIMEOUT_MS.
-  const [cfg, catalogue, orUp] = await Promise.all([
+  // DB reads are isolated and best-effort.
+  const [cfg, catalogue] = await Promise.all([
     dbOk ? readSettings() : Promise.resolve(null),
     dbOk ? checkCatalogue() : Promise.resolve({ fresh: false, count: 0 }),
-    checkOpenRouterUp(),
   ]);
 
   const key = cfg?.key ?? "";
   const keySet = key.length > 0;
-  const balanceOK = keySet ? await checkBalance(key) : false;
-  const ollamaModel = cfg?.ollamaModel ?? "";
-  const ollama = ollamaModel
-    ? await checkOllama(cfg?.ollamaUrl || "http://localhost:11434")
-    : { available: false, modelCount: 0 };
+  // All network probes run together, so worst case stays near five seconds.
+  const [orUp, balanceOK, ollamaAvailable] = await Promise.all([
+    checkOpenRouterUp(),
+    keySet ? checkBalance(key) : Promise.resolve(false),
+    checkOllama(cfg?.ollamaUrl ?? "http://127.0.0.1:11434", cfg?.ollamaModel ?? ""),
+  ]);
 
   const llmMode = (cfg?.llmMode ?? "auto") as "auto" | "always" | "off";
+  const llmBackend = (cfg?.llmBackend ?? "auto") as "auto" | "ollama" | "openrouter";
   const selectedModel = cfg?.model ? cfg.model : null;
-
+  const ollamaModel = cfg?.ollamaModel || null;
   const envLlm = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
-  const hasLLM = (keySet && balanceOK && Boolean(selectedModel)) || envLlm || (Boolean(ollamaModel) && ollama.available);
+  const cloudAvailable = (keySet && balanceOK && Boolean(selectedModel)) || envLlm;
+  const hasLLM =
+    llmBackend === "ollama"
+      ? ollamaAvailable
+      : llmBackend === "openrouter"
+        ? cloudAvailable
+        : ollamaAvailable || cloudAvailable;
+  const cloudRelevant = llmBackend !== "ollama" && !ollamaAvailable;
 
   return Response.json(
     {
       ok: dbOk,
       db: dbOk,
       openrouter: { available: orUp, keySet, balanceOK },
+      ollama: { available: ollamaAvailable, model: ollamaModel },
       modelCatalogue: catalogue,
       selectedModel,
       llmMode,
+      llmBackend,
       // Browser-only capabilities can't be observed from the server. The
       // client merges real values via probeClientTts(); these are the
       // server's best knowledge (system TTS exists on every modern phone).
       tts: { system: true, piper: false, kokoro: false },
       hasLLM,
-      // Convenience flags so the landing page can pick a banner directly.
-      ollama: { available: ollama.available, modelCount: ollama.modelCount, selectedModel: ollamaModel || null },
       hints: {
-        showConnectKey: !keySet && !envLlm && !ollamaModel && llmMode !== "off",
-        showAddCredit: keySet && !balanceOK && !ollamaModel,
-        showPickModel: keySet && balanceOK && !selectedModel && !ollamaModel && llmMode !== "off",
+        showConnectKey: cloudRelevant && !keySet && !envLlm && llmMode !== "off",
+        showAddCredit: cloudRelevant && keySet && !balanceOK,
+        showPickModel:
+          cloudRelevant && keySet && balanceOK && !selectedModel && llmMode !== "off",
         aiUnavailable: llmMode === "always" && !hasLLM,
       },
       latencyMs: Date.now() - started,

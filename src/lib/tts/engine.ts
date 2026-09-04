@@ -158,7 +158,7 @@ export function isKokoroLoaded() {
 /** Whether Kokoro has previously been fetched into the browser cache. */
 export function kokoroCachedFlag(): boolean {
   try {
-    return localStorage.getItem(`jarvis.kokoro.cached.${kokoroDtype}`) === "1";
+    return localStorage.getItem(`tala.kokoro.cached.${kokoroDtype}`) === "1";
   } catch {
     return false;
   }
@@ -208,7 +208,7 @@ function loadKokoro(
     });
     kokoroReady = true;
     try {
-      localStorage.setItem(`jarvis.kokoro.cached.${kokoroDtype}`, "1");
+      localStorage.setItem(`tala.kokoro.cached.${kokoroDtype}`, "1");
     } catch {
       /* private mode */
     }
@@ -295,7 +295,7 @@ const FEMALE_HINTS = [
 ];
 const MALE_HINTS = [
   "male","man","daniel","alex","fred","tom","oliver","aaron","david","mark","george","james",
-  "uk english male","rishi","arthur","gordon","lee","ryan","guy","brian","eric","liam","jarvis",
+  "uk english male","rishi","arthur","gordon","lee","ryan","guy","brian","eric","liam","tala",
   "reed","albert","bruce",
 ];
 

@@ -12,7 +12,7 @@ import {
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   userName: text("user_name").notNull().default("Sir"),
-  agentName: text("agent_name").notNull().default("JARVIS"),
+  agentName: text("agent_name").notNull().default("TALA"),
   attitude: text("attitude").notNull().default("butler"),
   customAttitude: text("custom_attitude").notNull().default(""),
   voiceGender: text("voice_gender").notNull().default("male"),
@@ -26,7 +26,7 @@ export const settings = pgTable("settings", {
   voicePitch: integer("voice_pitch").notNull().default(100), // percent
   voiceURI: text("voice_uri").notNull().default(""),
   speakReplies: boolean("speak_replies").notNull().default(true),
-  wakeWord: text("wake_word").notNull().default("jarvis"),
+  wakeWord: text("wake_word").notNull().default("tala"),
   // "continuous" (always on) | "wake" (wait for wake word) | "tap" (manual)
   listenMode: text("listen_mode").notNull().default("continuous"),
   // Auto-close the mic after this many seconds of silence in continuous mode.
@@ -35,8 +35,9 @@ export const settings = pgTable("settings", {
   // Stored server-side only; never returned to the client in full.
   openrouterKey: text("openrouter_key").notNull().default(""),
   openrouterModel: text("openrouter_model").notNull().default(""),
-  // ---- Ollama (local open-source LLM) ----
-  ollamaUrl: text("ollama_url").notNull().default("http://localhost:11434"),
+  // Backend preference: auto prefers local Ollama, then optional cloud providers.
+  llmBackend: text("llm_backend").notNull().default("auto"),
+  ollamaUrl: text("ollama_url").notNull().default("http://127.0.0.1:11434"),
   ollamaModel: text("ollama_model").notNull().default(""),
   // "auto" = local brain first then LLM, "always" = always use the LLM, "off"
   llmMode: text("llm_mode").notNull().default("auto"),

@@ -7,7 +7,13 @@ import { maskKey, verifyKey } from "@/lib/openrouter";
 
 export const dynamic = "force-dynamic";
 
-/** GET — masked key + live credit status. Never returns the raw key. */
+const safeStatus = (status: Awaited<ReturnType<typeof verifyKey>>) => ({
+  ok: status.ok,
+  label: status.label,
+  error: status.error,
+});
+
+/** GET — masked key + live credit status. Never returns the raw key or amounts. */
 export async function GET() {
   const s = await getSettings();
   const key = s.openrouterKey;
@@ -15,7 +21,7 @@ export async function GET() {
     return NextResponse.json({ configured: false, masked: "", status: null });
   }
   const status = await verifyKey(key);
-  return NextResponse.json({ configured: true, masked: maskKey(key), status });
+  return NextResponse.json({ configured: true, masked: maskKey(key), status: safeStatus(status) });
 }
 
 /** PUT — save (and validate) a new key. */
@@ -41,7 +47,7 @@ export async function PUT(req: Request) {
     .set({ openrouterKey: apiKey, updatedAt: new Date() })
     .where(eq(settings.id, 1));
 
-  return NextResponse.json({ configured: true, masked: maskKey(apiKey), status });
+  return NextResponse.json({ configured: true, masked: maskKey(apiKey), status: safeStatus(status) });
 }
 
 /** DELETE — remove the stored key. */

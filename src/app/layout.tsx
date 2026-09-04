@@ -4,11 +4,11 @@ import PwaRegister from "@/components/PwaRegister";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "JARVIS — Personal Assistant",
+  title: "TALA — Personal Assistant",
   description: "Your voice-driven daily AI assistant with a custom knowledge base and attitude.",
-  applicationName: "JARVIS",
+  applicationName: "TALA",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "JARVIS" },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "TALA" },
   formatDetection: { telephone: false },
   icons: {
     icon: [

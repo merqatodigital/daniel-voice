@@ -5,11 +5,11 @@ import { ENGINE_INFO, findVoice, loadCatalog } from "@/lib/tts/catalog";
 import { primeAudio, setKokoroDtype } from "@/lib/tts/engine";
 import { getPersona } from "@/lib/personas";
 import { isStopPhrase, matchWakeWord } from "@/lib/conversation";
+import { fetchHealth, type HealthReport } from "@/lib/health";
 import Orb from "@/components/Orb";
 import SettingsPanel from "@/components/SettingsPanel";
 import KnowledgePanel from "@/components/KnowledgePanel";
 import TasksPanel from "@/components/TasksPanel";
-import { fetchHealth, type HealthReport } from "@/lib/health";
 import { useListener, useTts, type TtsConfig } from "@/lib/useSpeech";
 import {
   DEFAULT_SETTINGS,
@@ -37,7 +37,6 @@ export default function Home() {
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
-  const [booted, setBooted] = useState(false);
   const [health, setHealth] = useState<HealthReport | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const settingsRef = useRef(settings);
@@ -77,12 +76,12 @@ export default function Home() {
       const [s, m, , h] = await Promise.all([
         fetch("/api/settings").then((r) => r.json()),
         fetch("/api/chat").then((r) => r.json()),
-        loadCatalog(),
-        fetchHealth().catch(() => null), // best-effort; never blocks boot
+        loadCatalog(), // voice names in the header resolve from the live catalogue
+        fetchHealth(), // best-effort rollup; runs in parallel with the rest
       ]);
       if (s.settings) setSettings({ ...DEFAULT_SETTINGS, ...s.settings });
+      setHealth(h);
       setHasLLM(Boolean(s.hasLLM));
-      if (h) setHealth(h);
       setMessages(
         (m.messages ?? []).map((x: { id: number; role: string; content: string }) => ({
           id: String(x.id),
@@ -91,7 +90,6 @@ export default function Home() {
         })),
       );
       await Promise.all([loadTasks(), loadKnowledge()]);
-      setBooted(true);
     })();
   }, [loadTasks, loadKnowledge]);
 
@@ -315,12 +313,13 @@ export default function Home() {
 
   const modelLabel = useMemo(() => {
     if (settings.llmMode === "off") return "local core";
+    if (settings.llmBackend !== "openrouter" && settings.ollamaModel) return `ollama · ${settings.ollamaModel}`;
     if (settings.openrouterModel) {
       // Show just the model slug, e.g. "claude-3-haiku".
       return settings.openrouterModel.split("/").pop() ?? settings.openrouterModel;
     }
-    return hasLLM ? "cloud + local core" : "local core";
-  }, [settings.llmMode, settings.openrouterModel, hasLLM]);
+    return hasLLM ? "LLM + local core" : "local core";
+  }, [settings.llmMode, settings.llmBackend, settings.ollamaModel, settings.openrouterModel, hasLLM]);
 
   const voiceSummary = useMemo(() => {
     const name =
@@ -391,27 +390,30 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-      {health && health.hints.aiUnavailable && (
-        <Banner color="rose" onSetup={() => setTab("setup")}>
-          Reasoning is set to Always, but no cloud model is connected. Switch to Auto in Setup, or connect a key.
-        </Banner>
+      {health?.hints.aiUnavailable && (
+        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-rose-400/40 bg-rose-400/10 px-3 py-2.5 text-[11px] text-rose-100">
+          <span className="flex-1 leading-relaxed">Reasoning is set to Always, but no cloud model is connected. Switch to Auto in Setup, or connect a key.</span>
+          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-rose-500/30 px-2.5 py-1.5 text-[11px] font-semibold text-slate-950">Setup</button>
+        </div>
       )}
-      {health && !health.hints.aiUnavailable && health.hints.showConnectKey && (
-        <Banner color="amber" onSetup={() => setTab("setup")}>
-          Connect your OpenRouter key in Setup to add cloud reasoning. The on-device brain still works without it.
-        </Banner>
+      {!health?.hints.aiUnavailable && health?.hints.showConnectKey && (
+        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-[11px] text-amber-100">
+          <span className="flex-1 leading-relaxed">Connect your OpenRouter key in Setup to add cloud reasoning. The on-device brain still works without it.</span>
+          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-amber-300 px-2.5 py-1.5 font-semibold text-slate-950">Setup</button>
+        </div>
       )}
-      {health && !health.hints.aiUnavailable && !health.hints.showConnectKey && health.hints.showAddCredit && (
-        <Banner color="amber" onSetup={() => setTab("setup")}>
-          Your OpenRouter key is saved but has no usable balance. Add credit at OpenRouter or switch to a free model in Setup.
-        </Banner>
+      {!health?.hints.aiUnavailable && !health?.hints.showConnectKey && health?.hints.showAddCredit && (
+        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-[11px] text-amber-100">
+          <span className="flex-1 leading-relaxed">Your OpenRouter key is saved but has no usable balance. Add credit at OpenRouter or switch to a free model in Setup.</span>
+          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-amber-300 px-2.5 py-1.5 font-semibold text-slate-950">Setup</button>
+        </div>
       )}
-      {health && !health.hints.aiUnavailable && !health.hints.showConnectKey && !health.hints.showAddCredit && health.hints.showPickModel && (
-        <Banner color="cyan" onSetup={() => setTab("setup")}>
-          A key is connected but no model is selected. Pick a model in Setup.
-        </Banner>
+      {!health?.hints.aiUnavailable && !health?.hints.showConnectKey && !health?.hints.showAddCredit && health?.hints.showPickModel && (
+        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-3 py-2.5 text-[11px] text-cyan-100">
+          <span className="flex-1 leading-relaxed">A key is connected but no model is selected. Pick a model in Setup.</span>
+          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-cyan-300 px-2.5 py-1.5 font-semibold text-slate-950">Setup</button>
+        </div>
       )}
-
       <header className="flex items-center justify-between pb-3">
         <div>
           <h1 className="text-lg font-semibold tracking-[0.25em] text-cyan-200 hud-text">
@@ -422,11 +424,7 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              !health ? "bg-amber-400 shadow-amber-400/70" : health.ok ? "bg-emerald-400 shadow-emerald-400/70" : "bg-rose-400 shadow-rose-400/70"
-            } shadow-[0_0_10px]`}
-          />
+          <span className={`h-2 w-2 rounded-full shadow-[0_0_10px] ${!health ? "bg-amber-400 shadow-amber-400/70" : health.ok ? "bg-emerald-400 shadow-emerald-400/70" : "bg-rose-400 shadow-rose-400/70"}`} />
           <span className="text-[10px] uppercase tracking-widest text-slate-500">
             {!health ? "boot" : health.ok ? "online" : "offline"}
           </span>
@@ -596,33 +594,5 @@ export default function Home() {
         </div>
       </nav>
     </main>
-  );
-}
-
-function Banner({
-  color,
-  onSetup,
-  children,
-}: {
-  color: "rose" | "amber" | "cyan";
-  onSetup: () => void;
-  children: React.ReactNode;
-}) {
-  const cls =
-    color === "rose"
-      ? "border-rose-400/40 bg-rose-400/10 text-rose-100"
-      : color === "amber"
-        ? "border-amber-400/40 bg-amber-400/10 text-amber-100"
-        : "border-cyan-400/40 bg-cyan-400/10 text-cyan-100";
-  return (
-    <div className={`mb-3 flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-[11px] ${cls}`}>
-      <span className="flex-1">{children}</span>
-      <button
-        onClick={onSetup}
-        className="shrink-0 rounded-lg bg-white/10 px-2.5 py-1 text-[11px] font-semibold"
-      >
-        Setup
-      </button>
-    </div>
   );
 }

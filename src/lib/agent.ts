@@ -65,7 +65,6 @@ function safeMath(expr: string): number | null {
   const cleaned = expr.replace(/[^0-9+\-*/().%\s^]/g, "");
   if (!/[0-9]/.test(cleaned) || !/[+\-*/^%]/.test(cleaned)) return null;
   try {
-    // eslint-disable-next-line no-new-func
     const fn = new Function(`"use strict";return (${cleaned.replaceAll("^", "**")});`);
     const val = fn();
     return typeof val === "number" && Number.isFinite(val) ? val : null;
@@ -297,8 +296,8 @@ export async function llmBrain(
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${orKey}`,
-          "HTTP-Referer": "https://jarvis.local",
-          "X-Title": ctx.settings.agentName || "JARVIS",
+          "HTTP-Referer": "https://tala.local",
+          "X-Title": ctx.settings.agentName || "TALA",
         },
         body: JSON.stringify({
           model: orModel,

@@ -51,7 +51,7 @@ type VoiceDl =
   | { state: "downloading"; pct?: number; label?: string }
   | { state: "error"; message: string };
 
-const LAST_USED_KEY = "jarvis.voice.lastUsed";
+const LAST_USED_KEY = "tala.voice.lastUsed";
 type LastUsed = Partial<Record<VoiceEngine, string>>;
 function readLastUsed(): LastUsed {
   try {

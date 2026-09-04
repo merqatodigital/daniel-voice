@@ -139,7 +139,9 @@ export function useListener(onFinal: (text: string) => void): ListenerApi {
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<SRType | null>(null);
   const cbRef = useRef(onFinal);
-  cbRef.current = onFinal;
+  useEffect(() => {
+    cbRef.current = onFinal;
+  }, [onFinal]);
 
   const activeRef = useRef(false); // conversation open
   const pausedRef = useRef(false); // mic muted while agent works
@@ -178,7 +180,7 @@ export function useListener(onFinal: (text: string) => void): ListenerApi {
     };
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) return;
-    setSupported(true);
+    const supportTimer = window.setTimeout(() => setSupported(true), 0);
     const rec = new Ctor();
     rec.continuous = true; // keep the session open across sentences
     rec.interimResults = true;
@@ -223,6 +225,7 @@ export function useListener(onFinal: (text: string) => void): ListenerApi {
     };
     recRef.current = rec;
     return () => {
+      window.clearTimeout(supportTimer);
       activeRef.current = false;
       if (restartRef.current) clearTimeout(restartRef.current);
       try {

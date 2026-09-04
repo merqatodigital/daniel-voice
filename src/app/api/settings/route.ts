@@ -14,7 +14,10 @@ export async function GET() {
     settings: safe,
     hasKey: Boolean(openrouterKey),
     hasLLM: Boolean(
-      openrouterKey || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY,
+      (openrouterKey && s.openrouterModel) ||
+        s.ollamaModel ||
+        process.env.OPENAI_API_KEY ||
+        process.env.ANTHROPIC_API_KEY,
     ),
   });
 }
@@ -32,7 +35,7 @@ export async function PUT(req: Request) {
     .update(settings)
     .set({
       userName: str(body.userName, "Sir").slice(0, 60),
-      agentName: str(body.agentName, "JARVIS").slice(0, 40),
+      agentName: str(body.agentName, "TALA").slice(0, 40),
       attitude: str(body.attitude, "butler"),
       customAttitude: str(body.customAttitude, "").slice(0, 2000),
       voiceGender: body.voiceGender === "female" ? "female" : "male",
@@ -44,7 +47,7 @@ export async function PUT(req: Request) {
       voicePitch: clampPct(body.voicePitch, 100),
       voiceURI: str(body.voiceURI, "").slice(0, 200),
       speakReplies: Boolean(body.speakReplies),
-      wakeWord: str(body.wakeWord, "jarvis").slice(0, 30),
+      wakeWord: str(body.wakeWord, "tala").slice(0, 30),
       listenMode:
         body.listenMode === "wake" || body.listenMode === "tap" ? body.listenMode : "continuous",
       silenceTimeoutSec: (() => {
@@ -54,8 +57,15 @@ export async function PUT(req: Request) {
         return Number.isFinite(n) ? Math.min(600, Math.max(10, Math.round(n))) : 45;
       })(),
       openrouterModel: str(body.openrouterModel, "").slice(0, 120),
-      ollamaUrl: str(body.ollamaUrl, "http://localhost:11434").slice(0, 200),
-      ollamaModel: str(body.ollamaModel, "").slice(0, 120),
+      llmBackend:
+        body.llmBackend === "ollama" || body.llmBackend === "openrouter"
+          ? body.llmBackend
+          : "auto",
+      ollamaUrl: (() => {
+        const value = str(body.ollamaUrl, "http://127.0.0.1:11434").trim().replace(/\/+$/, "");
+        return /^https?:\/\//i.test(value) ? value.slice(0, 300) : "http://127.0.0.1:11434";
+      })(),
+      ollamaModel: str(body.ollamaModel, "").trim().slice(0, 160),
       llmMode:
         body.llmMode === "always" || body.llmMode === "off" ? body.llmMode : "auto",
       timezone: str(body.timezone, "local").slice(0, 60),

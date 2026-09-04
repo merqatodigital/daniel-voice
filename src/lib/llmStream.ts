@@ -2,27 +2,51 @@ import { buildSystemPrompt, searchKnowledge, type AgentContext } from "./agent";
 import type { Knowledge } from "@/db/schema";
 
 export type StreamPlan = {
-  provider: "openrouter" | "openai" | "anthropic" | "ollama";
+  provider: "ollama" | "openrouter" | "openai" | "anthropic";
   hits: Knowledge[];
   /** Starts the upstream request and yields text deltas as they arrive. */
   run: () => AsyncGenerator<string, void, void>;
 };
 
+type Msg = { role: "user" | "assistant"; content: string };
+type OllamaTags = { models?: { name?: string; model?: string }[] };
+
+function cleanBaseUrl(url: string) {
+  return url.trim().replace(/\/+$/, "");
+}
+
 /**
- * Decide which LLM to call and return a lazy token generator. Returns null
- * when no provider is configured so the caller can stay on the local brain.
- *
- * Priority: OpenRouter (user-configured cloud) → Ollama (local open-source)
- * → OpenAI env var → Anthropic env var.
+ * Ollama is optional. Probe quickly so an offline local daemon never delays the
+ * built-in brain or the cloud fallback. A configured model must be installed.
  */
-export function planLlmStream(input: string, ctx: AgentContext): StreamPlan | null {
+async function ollamaHasModel(baseUrl: string, model: string): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 1500);
+  try {
+    const res = await fetch(`${baseUrl}/api/tags`, { signal: ctrl.signal, cache: "no-store" });
+    if (!res.ok) return false;
+    const json = (await res.json()) as OllamaTags;
+    return (json.models ?? []).some((m) => (m.name ?? m.model) === model);
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Decide which LLM to call and return a lazy token generator. `auto` prefers
+ * open-source local Ollama, then the optional OpenRouter/OpenAI/Anthropic paths.
+ * Returns null when no usable provider is configured.
+ */
+export async function planLlmStream(input: string, ctx: AgentContext): Promise<StreamPlan | null> {
+  const backend = ctx.settings.llmBackend;
+  const ollamaUrl = cleanBaseUrl(ctx.settings.ollamaUrl || "http://127.0.0.1:11434");
+  const ollamaModel = ctx.settings.ollamaModel;
   const orKey = ctx.settings.openrouterKey;
   const orModel = ctx.settings.openrouterModel;
-  const ollamaUrl = ctx.settings.ollamaUrl || "http://localhost:11434";
-  const ollamaModel = ctx.settings.ollamaModel;
   const openai = process.env.OPENAI_API_KEY;
   const anthropic = process.env.ANTHROPIC_API_KEY;
-  if (!(orKey && orModel) && !ollamaModel && !openai && !anthropic) return null;
 
   const hits = searchKnowledge(input, ctx.knowledge, 6);
   const system = buildSystemPrompt(ctx, hits.length ? hits : ctx.knowledge.slice(0, 6));
@@ -31,13 +55,24 @@ export function planLlmStream(input: string, ctx: AgentContext): StreamPlan | nu
     content: m.content,
   }));
 
+  // Explicit OpenRouter skips Ollama. Auto and explicit Ollama both try local.
+  if (backend !== "openrouter" && ollamaModel && (await ollamaHasModel(ollamaUrl, ollamaModel))) {
+    return {
+      provider: "ollama",
+      hits,
+      run: () => streamOllama({ baseUrl: ollamaUrl, model: ollamaModel, system, history, input }),
+    };
+  }
+
+  // Explicit Ollama never leaks a prompt to a cloud fallback.
+  if (backend === "ollama") return null;
+
   if (orKey && orModel) {
     return {
       provider: "openrouter",
       hits,
       run: () =>
         streamOpenAICompatible({
-          // Overridable so self-hosted OpenAI-compatible gateways work too.
           url: `${process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1"}/chat/completions`,
           key: orKey,
           model: orModel,
@@ -45,24 +80,9 @@ export function planLlmStream(input: string, ctx: AgentContext): StreamPlan | nu
           history,
           input,
           extraHeaders: {
-            "HTTP-Referer": "https://jarvis.local",
-            "X-Title": ctx.settings.agentName || "JARVIS",
+            "HTTP-Referer": "https://tala.local",
+            "X-Title": ctx.settings.agentName || "TALA",
           },
-        }),
-    };
-  }
-  // Ollama — local open-source LLM, no API key needed.
-  if (ollamaModel) {
-    return {
-      provider: "ollama",
-      hits,
-      run: () =>
-        streamOllama({
-          baseUrl: ollamaUrl,
-          model: ollamaModel,
-          system,
-          history,
-          input,
         }),
     };
   }
@@ -81,21 +101,22 @@ export function planLlmStream(input: string, ctx: AgentContext): StreamPlan | nu
         }),
     };
   }
-  return {
-    provider: "anthropic",
-    hits,
-    run: () =>
-      streamAnthropic({
-        key: anthropic as string,
-        model: process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
-        system,
-        history,
-        input,
-      }),
-  };
+  if (anthropic) {
+    return {
+      provider: "anthropic",
+      hits,
+      run: () =>
+        streamAnthropic({
+          key: anthropic,
+          model: process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
+          system,
+          history,
+          input,
+        }),
+    };
+  }
+  return null;
 }
-
-type Msg = { role: "user" | "assistant"; content: string };
 
 function friendlyHttpError(status: number, model: string, detail: string) {
   if (status === 402)
@@ -105,8 +126,8 @@ function friendlyHttpError(status: number, model: string, detail: string) {
   return `The model “${model}” failed (${status}). ${detail.slice(0, 140)}`;
 }
 
-/** Splits a byte stream into SSE `data:` payload lines. */
-async function* sseLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+/** Splits a byte stream into newline-delimited payloads. */
+async function* lines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buf = "";
@@ -117,19 +138,65 @@ async function* sseLines(body: ReadableStream<Uint8Array>): AsyncGenerator<strin
       buf += decoder.decode(value, { stream: true });
       let nl: number;
       while ((nl = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, nl).replace(/\r$/, "");
+        const line = buf.slice(0, nl).replace(/\r$/, "").trim();
         buf = buf.slice(nl + 1);
-        if (!line.startsWith("data:")) continue; // ignore comments / event: lines
-        const payload = line.slice(5).trim();
-        if (payload) yield payload;
+        if (line) yield line;
       }
     }
-    if (buf.startsWith("data:")) {
-      const payload = buf.slice(5).trim();
-      if (payload) yield payload;
-    }
+    const tail = (buf + decoder.decode()).trim();
+    if (tail) yield tail;
   } finally {
     reader.releaseLock();
+  }
+}
+
+/** Converts SSE into JSON payload lines. */
+async function* sseLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  for await (const line of lines(body)) {
+    if (!line.startsWith("data:")) continue;
+    const payload = line.slice(5).trim();
+    if (payload) yield payload;
+  }
+}
+
+/** Native, fully local Ollama `/api/chat` NDJSON stream. */
+async function* streamOllama(opts: {
+  baseUrl: string;
+  model: string;
+  system: string;
+  history: Msg[];
+  input: string;
+}): AsyncGenerator<string, void, void> {
+  const res = await fetch(`${opts.baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: opts.model,
+      stream: true,
+      keep_alive: "10m",
+      options: { num_predict: 600 },
+      messages: [
+        { role: "system", content: opts.system },
+        ...opts.history,
+        { role: "user", content: opts.input },
+      ],
+    }),
+  });
+  if (!res.ok || !res.body) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Ollama returned ${res.status}: ${detail.slice(0, 140)}`);
+  }
+  for await (const line of lines(res.body)) {
+    let json: { message?: { content?: string }; response?: string; done?: boolean; error?: string };
+    try {
+      json = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (json.error) throw new Error(json.error);
+    const token = json.message?.content ?? json.response;
+    if (token) yield token;
+    if (json.done) return;
   }
 }
 
@@ -160,13 +227,11 @@ async function* streamOpenAICompatible(opts: {
       ],
     }),
   });
-
   if (!res.ok || !res.body) {
     const detail = await res.text().catch(() => "");
     yield friendlyHttpError(res.status, opts.model, detail);
     return;
   }
-
   for await (const payload of sseLines(res.body)) {
     if (payload === "[DONE]") return;
     let json: {
@@ -176,7 +241,7 @@ async function* streamOpenAICompatible(opts: {
     try {
       json = JSON.parse(payload);
     } catch {
-      continue; // partial / keep-alive noise
+      continue;
     }
     if (json.error?.message) {
       yield `\n[${json.error.message}]`;
@@ -209,13 +274,11 @@ async function* streamAnthropic(opts: {
       messages: [...opts.history, { role: "user", content: opts.input }],
     }),
   });
-
   if (!res.ok || !res.body) {
     const detail = await res.text().catch(() => "");
     yield friendlyHttpError(res.status, opts.model, detail);
     return;
   }
-
   for await (const payload of sseLines(res.body)) {
     let json: {
       type?: string;
@@ -235,81 +298,5 @@ async function* streamAnthropic(opts: {
     if (json.type === "content_block_delta" && json.delta?.type === "text_delta" && json.delta.text) {
       yield json.delta.text;
     }
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Ollama — local open-source LLM (NDJSON streaming, no auth)          */
-/* ------------------------------------------------------------------ */
-
-async function* streamOllama(opts: {
-  baseUrl: string;
-  model: string;
-  system: string;
-  history: Msg[];
-  input: string;
-}): AsyncGenerator<string, void, void> {
-  const url = `${opts.baseUrl.replace(/\/+$/, "")}/api/chat`;
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: opts.model,
-        stream: true,
-        messages: [
-          { role: "system", content: opts.system },
-          ...opts.history,
-          { role: "user", content: opts.input },
-        ],
-      }),
-    });
-  } catch {
-    yield "Could not reach Ollama. Make sure `ollama serve` is running on this machine.";
-    return;
-  }
-
-  if (!res.ok || !res.body) {
-    const detail = await res.text().catch(() => "");
-    yield `Ollama returned ${res.status}. ${detail.slice(0, 140)}`;
-    return;
-  }
-
-  // Ollama streams NDJSON — one JSON object per line, not SSE.
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      let nl: number;
-      while ((nl = buf.indexOf("\n")) >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        if (!line) continue;
-        let json: {
-          done?: boolean;
-          message?: { content?: string };
-          error?: string;
-        };
-        try {
-          json = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (json.done) return;
-        if (json.error) {
-          yield `\n[Ollama: ${json.error}]`;
-          return;
-        }
-        const token = json.message?.content;
-        if (token) yield token;
-      }
-    }
-  } finally {
-    reader.releaseLock();
   }
 }

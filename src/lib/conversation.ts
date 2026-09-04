@@ -109,7 +109,7 @@ export type WakeResult = { heard: boolean; cleaned: string };
 
 /**
  * Detects the wake word anywhere in the utterance and strips it out.
- * Tolerant of transcription slips ("jarvus", "hey jarvis", "ok jarvis").
+ * Tolerant of transcription slips ("jarvus", "hey tala", "ok tala").
  */
 export function matchWakeWord(text: string, words: string[]): WakeResult {
   const cleanWords = words

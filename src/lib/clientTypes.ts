@@ -16,6 +16,7 @@ export type ClientSettings = {
   listenMode: "continuous" | "wake" | "tap";
   silenceTimeoutSec: number;
   openrouterModel: string;
+  llmBackend: "auto" | "ollama" | "openrouter";
   ollamaUrl: string;
   ollamaModel: string;
   llmMode: "auto" | "always" | "off";
@@ -39,7 +40,7 @@ export type ModelInfo = {
 export type KeyStatus = {
   configured: boolean;
   masked: string;
-  status: { ok: boolean; label?: string; limit?: number | null; usage?: number; error?: string } | null;
+  status: { ok: boolean; label?: string; error?: string } | null;
 };
 
 export type ChatMsg = {
@@ -63,7 +64,7 @@ export type KnowledgeItem = {
 export const DEFAULT_SETTINGS: ClientSettings = {
   id: 1,
   userName: "Sir",
-  agentName: "JARVIS",
+  agentName: "TALA",
   attitude: "butler",
   customAttitude: "",
   voiceGender: "male",
@@ -74,11 +75,12 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   voicePitch: 100,
   voiceURI: "",
   speakReplies: true,
-  wakeWord: "jarvis",
+  wakeWord: "tala",
   listenMode: "continuous",
   silenceTimeoutSec: 45,
   openrouterModel: "",
-  ollamaUrl: "http://localhost:11434",
+  llmBackend: "auto",
+  ollamaUrl: "http://127.0.0.1:11434",
   ollamaModel: "",
   llmMode: "auto",
   timezone: "local",

@@ -23,7 +23,7 @@ export const PERSONAS: Record<Exclude<AttitudeKey, "custom">, Persona> = {
     key: "butler",
     label: "Butler",
     emoji: "🎩",
-    blurb: "Formal, unflappable, quietly brilliant. The classic JARVIS.",
+    blurb: "Formal, unflappable, quietly brilliant. The classic TALA.",
     systemStyle:
       "Speak like a refined British AI butler: formal, precise, calm, faintly witty. Address the user respectfully. Never ramble.",
     greetings: [

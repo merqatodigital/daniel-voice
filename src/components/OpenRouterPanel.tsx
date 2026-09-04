@@ -184,81 +184,8 @@ export default function OpenRouterPanel({ settings, onChange }: Props) {
 
   const selected = modelList.find((m) => m.id === settings.openrouterModel);
 
-  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
-  const [ollamaChecking, setOllamaChecking] = useState(false);
-  const [ollamaOk, setOllamaOk] = useState<boolean | null>(null);
-
-  const checkOllama = useCallback(async () => {
-    const url = settings.ollamaUrl || "http://localhost:11434";
-    setOllamaChecking(true);
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 4000);
-      const res = await fetch(`${url}/api/tags`, { signal: ctrl.signal });
-      clearTimeout(t);
-      if (!res.ok) throw new Error(String(res.status));
-      const json = (await res.json()) as { models?: { name: string }[] };
-      setOllamaModels((json.models ?? []).map((m) => m.name));
-      setOllamaOk(true);
-    } catch {
-      setOllamaModels([]);
-      setOllamaOk(false);
-    } finally {
-      setOllamaChecking(false);
-    }
-  }, [settings.ollamaUrl]);
-
-  useEffect(() => {
-    void checkOllama();
-  }, [checkOllama]);
-
   return (
     <section className="glass rounded-2xl p-4 space-y-4">
-      {/* ---- Ollama (local open-source LLM) ---- */}
-      <div className="space-y-3 rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-emerald-200">🦙 Ollama (local)</h3>
-            <p className="text-[10px] text-emerald-300/60">Fully open-source, runs on your machine, zero API cost.</p>
-          </div>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] ${
-            ollamaOk === null ? "bg-slate-800 text-slate-400" : ollamaOk ? "bg-emerald-500/20 text-emerald-200" : "bg-slate-800 text-slate-500"
-          }`}>
-            {ollamaOk === null ? "checking…" : ollamaOk ? `${ollamaModels.length} models` : "offline"}
-          </span>
-        </div>
-        <input
-          className={input}
-          value={settings.ollamaUrl}
-          onChange={(e) => onChange({ ollamaUrl: e.target.value })}
-          placeholder="http://localhost:11434"
-        />
-        <div className="flex gap-1.5">
-          <select
-            value={settings.ollamaModel}
-            onChange={(e) => onChange({ ollamaModel: e.target.value })}
-            className="min-w-0 flex-1 rounded-lg border border-cyan-400/20 bg-slate-950/70 px-2 py-2 text-[11px] text-slate-200 outline-none"
-          >
-            <option value="">— none —</option>
-            {ollamaModels.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-          <button
-            onClick={checkOllama}
-            disabled={ollamaChecking}
-            className="shrink-0 rounded-lg border border-emerald-400/30 px-2.5 py-2 text-[11px] text-emerald-200 disabled:opacity-50"
-          >
-            {ollamaChecking ? "…" : "⟳"}
-          </button>
-        </div>
-        {ollamaOk === false && (
-          <p className="text-[10px] text-emerald-300/60">
-            Start Ollama with <code>ollama serve</code>, then pull a model: <code>ollama pull llama3.2</code>
-          </p>
-        )}
-      </div>
-
       <div className="flex items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold tracking-wide text-cyan-200 hud-text">
@@ -287,9 +214,7 @@ export default function OpenRouterPanel({ settings, onChange }: Props) {
               <p className="truncate font-mono text-[12px] text-emerald-100">{keyState.masked}</p>
               <p className="mt-0.5 text-[10px] text-emerald-200/70">
                 {keyState.status?.ok
-                  ? keyState.status.limit === null || keyState.status.limit === undefined
-                    ? `Connected${keyState.status.label ? ` · ${keyState.status.label}` : ""} · unlimited credits`
-                    : `Connected · $${(keyState.status.limit - (keyState.status.usage ?? 0)).toFixed(2)} of $${keyState.status.limit.toFixed(2)} left`
+                  ? `Connected${keyState.status.label ? ` · ${keyState.status.label}` : ""}`
                   : (keyState.status?.error ?? "Saved, but could not verify.")}
               </p>
             </div>

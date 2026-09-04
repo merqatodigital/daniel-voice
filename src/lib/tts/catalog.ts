@@ -69,7 +69,7 @@ export const PIPER_VOICES: CatalogVoice[] = [
   P("en_US-ljspeech-medium", "LJSpeech", "female", "en-US", "English (US)", "American", "Classic audiobook reader"),
   P("en_US-ljspeech-high", "LJSpeech HD", "female", "en-US", "English (US)", "American", "Classic reader, high fidelity"),
   P("en_US-hfc_female-medium", "HFC Female", "female", "en-US", "English (US)", "American", "Home Assistant favourite"),
-  P("en_US-ryan-medium", "Ryan", "male", "en-US", "English (US)", "American", "Deep, confident — great JARVIS tone"),
+  P("en_US-ryan-medium", "Ryan", "male", "en-US", "English (US)", "American", "Deep, confident — great TALA tone"),
   P("en_US-ryan-high", "Ryan HD", "male", "en-US", "English (US)", "American", "Deep and crisp"),
   P("en_US-ryan-low", "Ryan Lite", "male", "en-US", "English (US)", "American", "Deep, smallest download"),
   P("en_US-joe-medium", "Joe", "male", "en-US", "English (US)", "American", "Relaxed, conversational"),
@@ -194,7 +194,7 @@ export const KOKORO_VOICES: CatalogVoice[] = [
   K("am_puck", "Puck", "male", "en-US", "English (US)", "American", "Playful, quick"),
   K("am_santa", "Santa", "male", "en-US", "English (US)", "American", "Booming, jolly"),
   // British English
-  K("bf_emma", "Emma", "female", "en-GB", "English (UK)", "British", "Refined RP — very JARVIS"),
+  K("bf_emma", "Emma", "female", "en-GB", "English (UK)", "British", "Refined RP — very TALA"),
   K("bf_isabella", "Isabella", "female", "en-GB", "English (UK)", "British", "Elegant, poised"),
   K("bf_alice", "Alice", "female", "en-GB", "English (UK)", "British", "Clear, precise"),
   K("bf_lily", "Lily", "female", "en-GB", "English (UK)", "British", "Soft, gentle"),

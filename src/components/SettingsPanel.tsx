@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ATTITUDE_LIST } from "@/lib/personas";
 import VoiceLab from "@/components/VoiceLab";
 import OpenRouterPanel from "@/components/OpenRouterPanel";
+import OllamaPanel from "@/components/OllamaPanel";
 import type { ClientSettings } from "@/lib/clientTypes";
 
 type Props = {
@@ -61,7 +62,7 @@ export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Pr
             className={input}
             value={settings.agentName}
             onChange={(e) => onChange({ agentName: e.target.value })}
-            placeholder="JARVIS"
+            placeholder="TALA"
           />
         </Field>
       </section>
@@ -165,7 +166,7 @@ export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Pr
               className={input}
               value={settings.wakeWord}
               onChange={(e) => onChange({ wakeWord: e.target.value })}
-              placeholder="jarvis"
+              placeholder="tala"
             />
           </Field>
         )}
@@ -200,6 +201,8 @@ export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Pr
         </div>
       </section>
 
+      <OllamaPanel settings={settings} onChange={onChange} />
+
       <OpenRouterPanel settings={settings} onChange={onChange} />
 
       <VoiceLab settings={settings} onChange={onChange} />
@@ -232,8 +235,8 @@ export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Pr
         <p className="text-[11px] text-slate-500">
           Reasoning engine:{" "}
           {hasLLM
-            ? "cloud LLM + on-device brain"
-            : "on-device brain only — connect OpenRouter above to add cloud reasoning"}
+            ? "LLM + on-device brain"
+            : "on-device brain only — select a local Ollama model or connect OpenRouter above"}
           .
         </p>
       </section>

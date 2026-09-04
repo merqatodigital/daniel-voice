@@ -78,13 +78,13 @@ export async function POST(req: Request) {
   //            available, or the call fails, tell the user — never degrade.
   const mode = settings.llmMode;
   const wantsLlm = mode === "off" ? false : mode === "always" ? !tookAction : localWasWeak;
-  const plan = wantsLlm ? planLlmStream(input, ctx) : null;
+  const plan = wantsLlm ? await planLlmStream(input, ctx) : null;
   const strict = mode === "always";
 
   if (strict && wantsLlm && !plan) {
     const reply =
-      "Reasoning mode is set to “Always”, but no AI model is connected. " +
-      "Open Setup → OpenRouter brain to add your key and pick a model, or switch the mode to “Auto”.";
+      "Reasoning mode is set to “Always”, but no AI model is available. " +
+      "Open Setup to select a running Ollama model or connect OpenRouter, or switch the mode to “Auto”.";
     await persistExchange(input, reply, "llm", []);
     return NextResponse.json({
       reply,
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
         if (!full) {
           // "always" must never quietly hand the turn to the local brain.
           const fallback = strict
-            ? `I couldn't reach the model (${msg}). Reasoning is set to “Always”, so I won't answer from the local brain — check your OpenRouter key and model in Setup, or try again.`
+            ? `I couldn't reach the model (${msg}). Reasoning is set to “Always”, so I won't answer from the local brain — check your Ollama or OpenRouter settings, or try again.`
             : `I couldn't reach the model (${msg}). ${local.reply}`;
           full += fallback;
           controller.enqueue(encoder.encode(fallback));

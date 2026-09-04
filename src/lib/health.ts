@@ -6,10 +6,11 @@ export type HealthReport = {
   ok: boolean;
   db: boolean;
   openrouter: { available: boolean; keySet: boolean; balanceOK: boolean };
-  ollama: { available: boolean; modelCount: number; selectedModel: string | null };
+  ollama: { available: boolean; model: string | null };
   modelCatalogue: { fresh: boolean; count: number };
   selectedModel: string | null;
   llmMode: "auto" | "always" | "off";
+  llmBackend: "auto" | "ollama" | "openrouter";
   tts: { system: boolean; piper: boolean; kokoro: boolean };
   hasLLM: boolean;
   hints: {
