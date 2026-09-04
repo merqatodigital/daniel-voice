@@ -98,15 +98,26 @@ export default function OpenRouterPanel({ settings, onChange }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: k }),
       });
-      const j = await r.json();
-      if (!r.ok) {
-        setKeyError(j.error ?? "Could not save that key.");
+      // Vercel can return an HTML error page on 5xx — guard against non-JSON.
+      let j: { configured?: boolean; masked?: string; status?: { ok?: boolean; label?: string; error?: string } | null; error?: string };
+      try {
+        j = await r.json();
+      } catch {
+        setKeyError(`Server returned an error (${r.status}). Try again.`);
+        setSavingKey(false);
         return;
       }
-      setKeyState(j);
+      if (!r.ok) {
+        setKeyError(j.error ?? `Could not save that key (${r.status}).`);
+        setSavingKey(false);
+        return;
+      }
+      setKeyState(j as { configured: boolean; masked: string; status: { ok: boolean; label?: string; error?: string } | null });
       setKeyInput("");
-      // A valid key may unlock additional models.
-      void refresh();
+      // Try to refresh the model catalogue now that the key is saved.
+      await refresh();
+    } catch (err) {
+      setKeyError(err instanceof Error ? err.message : "Could not connect to OpenRouter.");
     } finally {
       setSavingKey(false);
     }
