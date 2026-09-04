@@ -1,5 +1,5 @@
-/* JARVIS service worker — keeps the shell installable and resilient offline. */
-const CACHE = "jarvis-v2";
+/* TALA service worker — keeps the shell installable and resilient offline. */
+const CACHE = "tala-v3";
 const SHELL = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (e) => {

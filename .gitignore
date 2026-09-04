@@ -1,0 +1,22 @@
+# dependencies / build output
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# local env files (never commit real secrets)
+.env
+.env.*
+!.env.example
+
+# runtime noise
+.DS_Store
+npm-debug.log*
+.vercel/
+.turbo/
+
+# editor
+.vscode/
+.idea/

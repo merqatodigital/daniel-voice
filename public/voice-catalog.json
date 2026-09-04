@@ -121,7 +121,7 @@
       "sizeMB": 63,
       "downloadUrl": "https://huggingface.co/diffusionstudio/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx",
       "accent": "American",
-      "note": "Deep, confident — great JARVIS tone",
+      "note": "Deep, confident — great TALA tone",
       "featured": true
     },
     {
@@ -1250,7 +1250,7 @@
       "sizeMB": 86,
       "downloadUrl": "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX",
       "accent": "British",
-      "note": "Refined RP — very JARVIS",
+      "note": "Refined RP — very TALA",
       "featured": true
     },
     {

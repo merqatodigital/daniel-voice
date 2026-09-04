@@ -47,6 +47,10 @@ export async function planLlmStream(input: string, ctx: AgentContext): Promise<S
   const orModel = ctx.settings.openrouterModel;
   const openai = process.env.OPENAI_API_KEY;
   const anthropic = process.env.ANTHROPIC_API_KEY;
+  // A reachable Ollama outside localhost (LAN box, Cloudflare/Tailscale tunnel).
+  // Deployment platforms can't host the daemon, so the URL has to come from env.
+  const envOllamaUrl = (process.env.OLLAMA_URL || "").trim();
+  const envOllamaModel = (process.env.OLLAMA_MODEL || "").trim();
 
   const hits = searchKnowledge(input, ctx.knowledge, 6);
   const system = buildSystemPrompt(ctx, hits.length ? hits : ctx.knowledge.slice(0, 6));
@@ -56,6 +60,27 @@ export async function planLlmStream(input: string, ctx: AgentContext): Promise<S
   }));
 
   // Explicit OpenRouter skips Ollama. Auto and explicit Ollama both try local.
+  // The env pair is consulted first when the DB still points at 127.0.0.1, which
+  // is what happens on Vercel / any host that has no local daemon.
+  const preferEnvOllama =
+    backend !== "openrouter" &&
+    envOllamaUrl &&
+    envOllamaModel &&
+    (!ollamaModel || /^https?:\/\/127\.0\.0\.1|^https?:\/\/localhost/i.test(ollamaUrl));
+  if (preferEnvOllama) {
+    return {
+      provider: "ollama",
+      hits,
+      run: () =>
+        streamOllama({
+          baseUrl: cleanBaseUrl(envOllamaUrl),
+          model: envOllamaModel,
+          system,
+          history,
+          input,
+        }),
+    };
+  }
   if (backend !== "openrouter" && ollamaModel && (await ollamaHasModel(ollamaUrl, ollamaModel))) {
     return {
       provider: "ollama",
@@ -66,6 +91,34 @@ export async function planLlmStream(input: string, ctx: AgentContext): Promise<S
 
   // Explicit Ollama never leaks a prompt to a cloud fallback.
   if (backend === "ollama") return null;
+
+  // A cloud OpenAI-compatible endpoint supplied purely by env (no key in the DB).
+  // Covers the free tiers — Groq, Cerebras, SambaNova, Mistral, OpenRouter — by
+  // swapping OPENAI_BASE_URL; nothing else in the request shape changes.
+  const envOrKey = (process.env.OPENROUTER_API_KEY || "").trim();
+  const envOrModel = (process.env.OPENROUTER_MODEL || "").trim();
+  const openAiBase = (process.env.OPENAI_BASE_URL || "").trim();
+  const openAiModel = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+  if (!orKey && envOrKey && envOrModel) {
+    return {
+      provider: "openrouter",
+      hits,
+      run: () =>
+        streamOpenAICompatible({
+          url: `${process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1"}/chat/completions`,
+          key: envOrKey,
+          model: envOrModel,
+          system,
+          history,
+          input,
+          extraHeaders: {
+            "HTTP-Referer": "https://tala.local",
+            "X-Title": ctx.settings.agentName || "TALA",
+          },
+        }),
+    };
+  }
 
   if (orKey && orModel) {
     return {
@@ -92,9 +145,9 @@ export async function planLlmStream(input: string, ctx: AgentContext): Promise<S
       hits,
       run: () =>
         streamOpenAICompatible({
-          url: "https://api.openai.com/v1/chat/completions",
+          url: `${openAiBase ? cleanBaseUrl(openAiBase) : "https://api.openai.com/v1"}/chat/completions`,
           key: openai,
-          model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+          model: openAiModel,
           system,
           history,
           input,

@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   // The open-source TTS engines (@huggingface/transformers for Kokoro and
   // onnxruntime-web for Piper) ship Node-only entrypoints that must not be
   // bundled for the browser. Both are dynamically imported client-side only.
-  serverExternalPackages: ["kokoro-js", "@mintplex-labs/piper-tts-web"],
+  serverExternalPackages: ["kokoro-js", "@mintplex-labs/piper-tts-web", "pg"],
   turbopack: {
     resolveAlias: {
       "onnxruntime-node": "./src/lib/tts/empty.js",

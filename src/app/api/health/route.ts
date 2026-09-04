@@ -128,22 +128,34 @@ export async function GET() {
   const llmBackend = (cfg?.llmBackend ?? "auto") as "auto" | "ollama" | "openrouter";
   const selectedModel = cfg?.model ? cfg.model : null;
   const ollamaModel = cfg?.ollamaModel || null;
-  const envLlm = Boolean(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY);
+  const envLlm = Boolean(
+    process.env.OPENAI_API_KEY ||
+      process.env.ANTHROPIC_API_KEY ||
+      process.env.OPENROUTER_API_KEY,
+  );
+  // On Vercel there is no local daemon; env-supplied Ollama still counts.
+  const envOllama = Boolean(process.env.OLLAMA_URL && process.env.OLLAMA_MODEL);
+  const ollamaAvailableFinal =
+    ollamaAvailable ||
+    (envOllama && (await checkOllama(process.env.OLLAMA_URL!, process.env.OLLAMA_MODEL!)));
   const cloudAvailable = (keySet && balanceOK && Boolean(selectedModel)) || envLlm;
   const hasLLM =
     llmBackend === "ollama"
-      ? ollamaAvailable
+      ? ollamaAvailableFinal
       : llmBackend === "openrouter"
         ? cloudAvailable
-        : ollamaAvailable || cloudAvailable;
-  const cloudRelevant = llmBackend !== "ollama" && !ollamaAvailable;
+        : ollamaAvailableFinal || cloudAvailable;
+  const cloudRelevant = llmBackend !== "ollama" && !ollamaAvailableFinal;
 
   return Response.json(
     {
       ok: dbOk,
       db: dbOk,
       openrouter: { available: orUp, keySet, balanceOK },
-      ollama: { available: ollamaAvailable, model: ollamaModel },
+      ollama: {
+      available: ollamaAvailableFinal,
+      model: ollamaModel || (envOllama ? process.env.OLLAMA_MODEL! : null),
+    },
       modelCatalogue: catalogue,
       selectedModel,
       llmMode,
@@ -154,7 +166,8 @@ export async function GET() {
       tts: { system: true, piper: false, kokoro: false },
       hasLLM,
       hints: {
-        showConnectKey: cloudRelevant && !keySet && !envLlm && llmMode !== "off",
+        showConnectKey:
+          cloudRelevant && !keySet && !envLlm && !selectedModel && llmMode !== "off",
         showAddCredit: cloudRelevant && keySet && !balanceOK,
         showPickModel:
           cloudRelevant && keySet && balanceOK && !selectedModel && llmMode !== "off",

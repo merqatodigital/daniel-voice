@@ -32,7 +32,7 @@ CREATE TABLE "models" (
 CREATE TABLE "settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_name" text DEFAULT 'Sir' NOT NULL,
-	"agent_name" text DEFAULT 'JARVIS' NOT NULL,
+	"agent_name" text DEFAULT 'TALA' NOT NULL,
 	"attitude" text DEFAULT 'butler' NOT NULL,
 	"custom_attitude" text DEFAULT '' NOT NULL,
 	"voice_gender" text DEFAULT 'male' NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE "settings" (
 	"voice_pitch" integer DEFAULT 100 NOT NULL,
 	"voice_uri" text DEFAULT '' NOT NULL,
 	"speak_replies" boolean DEFAULT true NOT NULL,
-	"wake_word" text DEFAULT 'jarvis' NOT NULL,
+	"wake_word" text DEFAULT 'tala' NOT NULL,
 	"listen_mode" text DEFAULT 'continuous' NOT NULL,
 	"silence_timeout_sec" integer DEFAULT 45 NOT NULL,
 	"openrouter_key" text DEFAULT '' NOT NULL,

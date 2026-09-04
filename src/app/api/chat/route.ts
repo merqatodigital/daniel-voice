@@ -7,6 +7,13 @@ import { localBrain, type AgentContext, type AgentResult } from "@/lib/agent";
 import { planLlmStream } from "@/lib/llmStream";
 
 export const dynamic = "force-dynamic";
+/**
+ * Token streams must survive the whole generation. Hosts with a function time
+ * limit (Vercel Hobby caps at 300s, and its default is far shorter) would
+ * otherwise truncate a slow free-tier reply mid-sentence; 60s bounds both the
+ * worst-case wait and the billed duration.
+ */
+export const maxDuration = 60;
 
 export async function GET() {
   return NextResponse.json({ messages: await getMessages() });

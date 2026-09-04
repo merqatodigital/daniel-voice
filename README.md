@@ -23,6 +23,27 @@ npm install && npx drizzle-kit migrate && npm run dev
 
 No Docker is required.
 
+## Free backends, no cloud account required
+
+The open-source path needs no vendor relationship at all: browser speech plus the
+local brain. When you do want reasoning, configure any of these — all of them are
+free at personal-use volume:
+
+- **Ollama** on your own machine, reachable by the deployed app via `OLLAMA_URL` +
+  `OLLAMA_MODEL` (a LAN address or a tunnel; serverless hosts cannot run the daemon).
+- **Any OpenAI-compatible endpoint serving open weights** (Groq, Cerebras, SambaNova,
+  …): set `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`.
+- **OpenRouter free models**: `OPENROUTER_API_KEY` + `OPENROUTER_MODEL`, or paste a
+  key into Setup and it is kept in PostgreSQL.
+
+`.env.example` documents every variable.
+
+## Deploy
+
+`DEPLOY.md` is the runbook for Vercel (Hobby) + Neon (free): integrations, env vars,
+migrations, phone install, health checks, and the tunnelled-Ollama variant.
+`ARCHITECTURE.md` covers the stack, the file tree, and the request lifecycle.
+
 ## Phone installation
 
 TALA is an installable phone-first PWA. Add it to the phone home screen; microphone, speech, and downloaded voices are offline-capable where the browser supports them.

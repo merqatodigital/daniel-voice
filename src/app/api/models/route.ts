@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { models } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { models, settings } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
 import { getSettings } from "@/lib/store";
 import { refreshModels } from "@/lib/openrouter";
 
@@ -15,6 +15,14 @@ async function listModels() {
 /** GET — return the cached catalogue (auto-refreshes if empty). */
 export async function GET() {
   const s = await getSettings();
+  const envModel = (process.env.OPENROUTER_MODEL || "").trim();
+  // Nothing stored yet but a model configured by env → keep the picker honest.
+  if (!s.openrouterModel && envModel) {
+    await db
+      .update(settings)
+      .set({ openrouterModel: envModel, updatedAt: new Date() })
+      .where(eq(settings.id, 1));
+  }
   let rows = await listModels();
 
   if (rows.length === 0) {

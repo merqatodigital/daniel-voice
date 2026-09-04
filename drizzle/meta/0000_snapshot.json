@@ -211,7 +211,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'JARVIS'"
+          "default": "'TALA'"
         },
         "attitude": {
           "name": "attitude",
@@ -288,7 +288,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "'jarvis'"
+          "default": "'tala'"
         },
         "listen_mode": {
           "name": "listen_mode",
