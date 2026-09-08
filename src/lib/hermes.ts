@@ -167,6 +167,7 @@ export async function streamHermes(
   history: HermesHistoryMessage[],
   knowledge: KnowledgeEntry[] = [],
   tasks: TaskEntry[] = [],
+  settings?: { agentName?: string; userName?: string; attitude?: string; customAttitude?: string },
 ): Promise<ReadableStream<Uint8Array>> {
   const wsUrl = await getWsUrl();
   const encoder = new TextEncoder();
@@ -230,14 +231,27 @@ export async function streamHermes(
           if (!sessionId)
             throw new Error("Hermes did not return session_id");
 
+          const name = settings?.agentName || "TALA";
+          const user = settings?.userName || "Sir";
+          const attitudeStyle =
+            settings?.attitude === "custom" && settings?.customAttitude
+              ? settings.customAttitude
+              : settings?.attitude === "snarky"
+                ? "You are witty, sharp, and a little sarcastic — but always helpful."
+                : settings?.attitude === "formal"
+                  ? "You are polished and professional."
+                  : "You are warm, friendly, and attentive.";
+
+          const personaBlock = `[SYSTEM INSTRUCTIONS — you are ${name}, a personal AI assistant for ${user}. ${attitudeStyle} Always identify yourself as ${name}. Never call yourself Solar or any other name.]\n\n`;
+
           const transcript = history
             .slice(-20)
             .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
             .join("\n");
 
           const prompt = transcript
-            ? `${context}\n${transcript}\nUSER: ${input}`
-            : input;
+            ? `${personaBlock}${context}\n${transcript}\nUSER: ${input}`
+            : `${personaBlock}${context ? context + "\n" : ""}USER: ${input}`;
 
           await rpc("prompt.submit", {
             session_id: sessionId,

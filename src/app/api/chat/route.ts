@@ -45,12 +45,14 @@ async function hermesBuffer(
   history: Awaited<ReturnType<typeof getMessages>>,
   kb: Awaited<ReturnType<typeof getKnowledge>>,
   taskRows: Awaited<ReturnType<typeof getTasks>>,
+  settings: Awaited<ReturnType<typeof getSettings>>,
 ): Promise<string> {
   const source = await streamHermes(
     input,
     toHermesHistory(history),
     kb as KnowledgeEntry[],
     taskRows as TaskEntry[],
+    settings,
   );
   const reader = source.getReader();
   const decoder = new TextDecoder();
@@ -117,7 +119,7 @@ export async function POST(req: Request) {
   // Hermes fallback
   if (!reply && hermesConfigured()) {
     try {
-      reply = await hermesBuffer(input, history, kb, taskRows);
+      reply = await hermesBuffer(input, history, kb, taskRows, settings);
       if (reply) {
         engine = "hermes";
         provider = "hermes-agent";

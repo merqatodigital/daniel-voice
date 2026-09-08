@@ -32,7 +32,7 @@ export async function PUT(req: Request) {
         agentName: str(body.agentName, "TALA").slice(0, 40),
         attitude: str(body.attitude, "butler"),
         customAttitude: str(body.customAttitude, "").slice(0, 2000),
-        voiceGender: body.voiceGender === "female" ? "female" : "male",
+        voiceGender: body.voiceGender === "female" || body.voiceGender === "male" ? body.voiceGender : "female",
         voiceEngine:
           body.voiceEngine === "piper" || body.voiceEngine === "kokoro" ? body.voiceEngine : "system",
         voiceId: str(body.voiceId, "").slice(0, 80),

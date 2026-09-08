@@ -224,10 +224,10 @@ export default function SettingsPanel({ settings, onChange, onSave }: Props) {
           >
             <option value="">— pick a model —</option>
             <optgroup label="Free models">
-              <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (free)</option>
+              <option value="openrouter/free">Auto (OpenRouter picks best free model)</option>
               <option value="google/gemma-4-31b-it:free">Gemma 4 31B (free)</option>
+              <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (free)</option>
               <option value="nvidia/nemotron-3.5-lightning:free">Nemotron 3.5 Lightning (free)</option>
-              <option value="qwen/qwen-2.5-7b-instruct:free">Qwen 2.5 7B (free)</option>
             </optgroup>
             <optgroup label="Paid — small & cheap">
               <option value="openai/gpt-4o-mini">GPT-4o mini</option>
