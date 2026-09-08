@@ -242,13 +242,14 @@ let piperPromise: Promise<PiperLike> | null = null;
 
 function loadPiper(): Promise<PiperLike> {
   if (piperPromise) return piperPromise;
-  piperPromise = (async () => {
-    const mod = (await import("@mintplex-labs/piper-tts-web")) as unknown as PiperLike;
-    return mod;
-  })().catch((err) => {
-    piperPromise = null;
-    throw err;
-  });
+  // @mintplex-labs/piper-tts-web contains Node.js `require("fs")` calls in its
+  // WASM loader that break Turbopack browser bundling. Disable Piper for now;
+  // the speak() catch block falls back to system speech on any TTS failure.
+  piperPromise = Promise.reject(
+    new Error(
+      "Piper TTS is temporarily unavailable (fs/path bundling issue — see next.config.ts)"
+    )
+  );
   return piperPromise;
 }
 
