@@ -1,17 +1,61 @@
 # TALA
 
-TALA is a phone-first, voice-driven personal assistant with continuous conversation, tasks, a searchable knowledge base, configurable personality, streaming LLM replies, and open-source browser speech engines. The core app works without a cloud AI account.
+TALA is a phone-first, voice-driven personal assistant with continuous conversation, tasks, a searchable knowledge base, configurable personality, streaming replies, and open-source browser speech engines.
+
+Hermes Agent is now the primary agent runtime when configured. The existing local/Ollama path remains available as a fallback while Hermes is being brought online.
 
 ## Requirements
 
-A machine with Node.js, a PostgreSQL instance, and a `DATABASE_URL` environment variable pointing at that database. That is everything required for the open-source path.
+A machine with Node.js, PostgreSQL, and a `DATABASE_URL` environment variable.
 
-## LLM options
+For the Hermes path, install and run Hermes Agent separately on the same machine or network. TALA talks to Hermes through its OpenAI-compatible API server; Hermes remains responsible for agent tools, skills, memory, delegation, and model execution.
 
-- **OpenRouter:** Paste a key into the Setup panel. The key is stored in PostgreSQL, never returned to the browser, and is used only by the server.
-- **Ollama:** Run `ollama serve` on the same machine, then choose an installed Ollama model in Setup. This path is fully local, open-source, free to run, and uses no external API.
+## Hermes Agent
 
-Voice recognition and text-to-speech run in the browser, so they add zero server cost.
+Enable the Hermes API server in `~/.hermes/.env`:
+
+```sh
+API_SERVER_ENABLED=true
+API_SERVER_KEY=change-me
+```
+
+Then start Hermes:
+
+```sh
+hermes gateway
+```
+
+By default Hermes listens on:
+
+```text
+http://127.0.0.1:8642
+```
+
+Configure TALA with server-side environment variables:
+
+```sh
+HERMES_API_URL=http://127.0.0.1:8642
+HERMES_API_KEY=change-me
+HERMES_MODEL=hermes-agent
+HERMES_SESSION_KEY=tala:main:web:owner
+```
+
+Optional TALA identity override:
+
+```sh
+TALA_SYSTEM_PROMPT="You are TALA, the user's persistent personal agent."
+```
+
+`HERMES_API_KEY` stays on the Next.js server and is never sent to the phone/browser.
+
+When `HERMES_API_KEY` is present, `/api/chat` routes TALA conversations through Hermes and streams the response back to the existing voice UI. If Hermes is not configured or cannot be reached before a response starts, the legacy TALA local/Ollama path remains available as a fallback.
+
+## Local model fallback
+
+- **Ollama:** Run `ollama serve` on the same machine, then choose an installed Ollama model in Setup. This path is fully local, open-source, free to run, and uses no external inference API.
+- The older OpenRouter integration remains in the repository for compatibility but is not required for the open-source Hermes + local-model path.
+
+Voice recognition and text-to-speech currently run in the browser, so they add zero server inference cost.
 
 ## Start
 
