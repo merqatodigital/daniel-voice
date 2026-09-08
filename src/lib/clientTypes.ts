@@ -1,3 +1,5 @@
+/** Core types shared between the Next.js frontend and its API routes. */
+
 export type ClientSettings = {
   id: number;
   userName: string;
@@ -15,32 +17,8 @@ export type ClientSettings = {
   wakeWord: string;
   listenMode: "continuous" | "wake" | "tap";
   silenceTimeoutSec: number;
-  openrouterModel: string;
-  llmBackend: "auto" | "ollama" | "openrouter";
-  ollamaUrl: string;
-  ollamaModel: string;
-  llmMode: "auto" | "always" | "off";
   timezone: string;
-  units: string;
-};
-
-export type ModelInfo = {
-  id: string;
-  name: string;
-  description: string;
-  contextLength: number;
-  promptPrice: string;
-  completionPrice: string;
-  isFree: boolean;
-  provider: string;
-  modalities: string;
-  createdAt: number;
-};
-
-export type KeyStatus = {
-  configured: boolean;
-  masked: string;
-  status: { ok: boolean; label?: string; error?: string } | null;
+  units: "metric" | "imperial";
 };
 
 export type ChatMsg = {
@@ -51,14 +29,18 @@ export type ChatMsg = {
   used?: { id: number; title: string }[];
 };
 
-export type TaskItem = { id: number; title: string; done: boolean };
-
 export type KnowledgeItem = {
   id: number;
   title: string;
   content: string;
   tags: string;
-  source: string;
+};
+
+export type TaskItem = {
+  id: number;
+  title: string;
+  done: boolean;
+  dueAt?: string;
 };
 
 export const DEFAULT_SETTINGS: ClientSettings = {
@@ -67,9 +49,9 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   agentName: "TALA",
   attitude: "butler",
   customAttitude: "",
-  voiceGender: "male",
-  voiceEngine: "system",
-  voiceId: "",
+  voiceGender: "female",
+  voiceEngine: "kokoro",
+  voiceId: "af_heart",
   kokoroDtype: "q8",
   voiceRate: 100,
   voicePitch: 100,
@@ -78,11 +60,6 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   wakeWord: "tala",
   listenMode: "continuous",
   silenceTimeoutSec: 45,
-  openrouterModel: "",
-  llmBackend: "auto",
-  ollamaUrl: "http://127.0.0.1:11434",
-  ollamaModel: "",
-  llmMode: "auto",
   timezone: "local",
   units: "metric",
 };

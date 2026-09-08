@@ -31,7 +31,6 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 export default function Home() {
   const [tab, setTab] = useState<Tab>("talk");
   const [settings, setSettings] = useState<ClientSettings>(DEFAULT_SETTINGS);
-  const [hasLLM, setHasLLM] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
@@ -81,7 +80,6 @@ export default function Home() {
       ]);
       if (s.settings) setSettings({ ...DEFAULT_SETTINGS, ...s.settings });
       setHealth(h);
-      setHasLLM(Boolean(s.hasLLM));
       setMessages(
         (m.messages ?? []).map((x: { id: number; role: string; content: string }) => ({
           id: String(x.id),
@@ -312,14 +310,8 @@ export default function Home() {
   }, []);
 
   const modelLabel = useMemo(() => {
-    if (settings.llmMode === "off") return "local core";
-    if (settings.llmBackend !== "openrouter" && settings.ollamaModel) return `ollama · ${settings.ollamaModel}`;
-    if (settings.openrouterModel) {
-      // Show just the model slug, e.g. "claude-3-haiku".
-      return settings.openrouterModel.split("/").pop() ?? settings.openrouterModel;
-    }
-    return hasLLM ? "LLM + local core" : "local core";
-  }, [settings.llmMode, settings.llmBackend, settings.ollamaModel, settings.openrouterModel, hasLLM]);
+    return "Hermes Agent";
+  }, []);
 
   const voiceSummary = useMemo(() => {
     const name =
@@ -390,30 +382,6 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-      {health?.hints.aiUnavailable && (
-        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-rose-400/40 bg-rose-400/10 px-3 py-2.5 text-[11px] text-rose-100">
-          <span className="flex-1 leading-relaxed">Reasoning is set to Always, but no cloud model is connected. Switch to Auto in Setup, or connect a key.</span>
-          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-rose-500/30 px-2.5 py-1.5 text-[11px] font-semibold text-slate-950">Setup</button>
-        </div>
-      )}
-      {!health?.hints.aiUnavailable && health?.hints.showConnectKey && (
-        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-[11px] text-amber-100">
-          <span className="flex-1 leading-relaxed">Connect your OpenRouter key in Setup to add cloud reasoning. The on-device brain still works without it.</span>
-          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-amber-300 px-2.5 py-1.5 font-semibold text-slate-950">Setup</button>
-        </div>
-      )}
-      {!health?.hints.aiUnavailable && !health?.hints.showConnectKey && health?.hints.showAddCredit && (
-        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-amber-400/40 bg-amber-400/10 px-3 py-2.5 text-[11px] text-amber-100">
-          <span className="flex-1 leading-relaxed">Your OpenRouter key is saved but has no usable balance. Add credit at OpenRouter or switch to a free model in Setup.</span>
-          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-amber-300 px-2.5 py-1.5 font-semibold text-slate-950">Setup</button>
-        </div>
-      )}
-      {!health?.hints.aiUnavailable && !health?.hints.showConnectKey && !health?.hints.showAddCredit && health?.hints.showPickModel && (
-        <div role="status" className="mb-3 flex items-center gap-3 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-3 py-2.5 text-[11px] text-cyan-100">
-          <span className="flex-1 leading-relaxed">A key is connected but no model is selected. Pick a model in Setup.</span>
-          <button onClick={() => setTab("setup")} className="shrink-0 rounded-lg bg-cyan-300 px-2.5 py-1.5 font-semibold text-slate-950">Setup</button>
-        </div>
-      )}
       <header className="flex items-center justify-between pb-3">
         <div>
           <h1 className="text-lg font-semibold tracking-[0.25em] text-cyan-200 hud-text">
@@ -570,7 +538,6 @@ export default function Home() {
                 settings={settings}
                 onChange={(patch) => setSettings((s) => ({ ...s, ...patch }))}
                 onSave={saveSettings}
-                hasLLM={hasLLM}
               />
             )}
           </div>

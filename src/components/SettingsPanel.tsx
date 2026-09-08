@@ -3,15 +3,12 @@
 import { useState } from "react";
 import { ATTITUDE_LIST } from "@/lib/personas";
 import VoiceLab from "@/components/VoiceLab";
-import OpenRouterPanel from "@/components/OpenRouterPanel";
-import OllamaPanel from "@/components/OllamaPanel";
 import type { ClientSettings } from "@/lib/clientTypes";
 
 type Props = {
   settings: ClientSettings;
   onChange: (patch: Partial<ClientSettings>) => void;
   onSave: () => Promise<void>;
-  hasLLM: boolean;
 };
 
 const Field = ({
@@ -33,7 +30,7 @@ const Field = ({
 const input =
   "w-full rounded-xl border border-cyan-400/20 bg-slate-950/60 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-400/60";
 
-export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Props) {
+export default function SettingsPanel({ settings, onChange, onSave }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -201,15 +198,11 @@ export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Pr
         </div>
       </section>
 
-      <OllamaPanel settings={settings} onChange={onChange} />
-
-      <OpenRouterPanel settings={settings} onChange={onChange} />
-
       <VoiceLab settings={settings} onChange={onChange} />
 
       <section className="glass rounded-2xl p-4 space-y-4">
         <h2 className="text-sm font-semibold tracking-wide text-cyan-200 hud-text">Preferences</h2>
-        <Field label="Time zone" hint="IANA name, e.g. Europe/London. Use “local” for device time.">
+        <Field label="Time zone" hint="IANA name, e.g. Europe/London. Use 'local' for device time.">
           <input
             className={input}
             value={settings.timezone}
@@ -233,11 +226,7 @@ export default function SettingsPanel({ settings, onChange, onSave, hasLLM }: Pr
           ))}
         </div>
         <p className="text-[11px] text-slate-500">
-          Reasoning engine:{" "}
-          {hasLLM
-            ? "LLM + on-device brain"
-            : "on-device brain only — select a local Ollama model or connect OpenRouter above"}
-          .
+          TALA runs on Hermes Agent. Model, memory, and reasoning are configured in the TALA Hermes profile — not here.
         </p>
       </section>
 
