@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getSettings, getKnowledge, getTasks, getMessages } from "@/lib/store";
 import { localBrain, type AgentContext, type AgentResult } from "@/lib/agent";
 import { planLlmStream } from "@/lib/llmStream";
+import { hermesConfigured, streamHermes, type HermesHistoryMessage } from "@/lib/hermes";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,55 @@ async function persistExchange(
   ]);
 }
 
+function toHermesHistory(
+  history: Awaited<ReturnType<typeof getMessages>>,
+): HermesHistoryMessage[] {
+  return history
+    .slice(-20)
+    .map((m) => ({
+      role: m.role === "agent" ? ("assistant" as const) : ("user" as const),
+      content: m.content,
+    }))
+    .filter((m) => m.content.trim().length > 0);
+}
+
+async function hermesResponse(input: string, history: Awaited<ReturnType<typeof getMessages>>) {
+  const source = await streamHermes(input, toHermesHistory(history));
+  const reader = source.getReader();
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let full = "";
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value, { stream: true });
+          if (!text) continue;
+          full += text;
+          controller.enqueue(encoder.encode(text));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Hermes stream failed";
+        if (!full) controller.enqueue(encoder.encode(`Hermes connection failed: ${msg}`));
+      } finally {
+        const reply = full.trim();
+        if (reply) {
+          try {
+            await persistExchange(input, reply, "hermes", []);
+          } catch {
+            // A DB failure must not break the response stream.
+          }
+        }
+        reader.releaseLock();
+        controller.close();
+      }
+    },
+  });
+}
+
 export async function POST(req: Request) {
   const body = (await req.json()) as { input?: string };
   const input = (body.input ?? "").trim();
@@ -57,6 +107,26 @@ export async function POST(req: Request) {
     getMessages(20),
   ]);
 
+  // Hermes is now TALA's primary agent runtime. The existing local/Ollama path
+  // remains intact as a fallback until Hermes is configured and proven stable.
+  if (hermesConfigured()) {
+    try {
+      const stream = await hermesResponse(input, history);
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+          "X-Accel-Buffering": "no",
+          "X-Engine": "hermes",
+          "X-Provider": "hermes-agent",
+          "X-Used-Knowledge": encodeURIComponent("[]"),
+        },
+      });
+    } catch (err) {
+      console.error("Hermes unavailable; using legacy TALA fallback", err);
+    }
+  }
+
   const ctx: AgentContext = {
     settings,
     knowledge: kb,
@@ -64,18 +134,10 @@ export async function POST(req: Request) {
     history: history.map((m) => ({ role: m.role, content: m.content })),
   };
 
-  // The local brain always runs first: it handles deterministic commands
-  // (tasks, memory, maths, briefings) that must never be paraphrased away.
   const local = localBrain(input, ctx);
   const tookAction = local.actions.length > 0;
   const localWasWeak = !tookAction && local.usedKnowledge.length === 0;
 
-  // ---- LLM decision: branch explicitly on the three llmMode values. ----
-  //   off    → local brain only, even if keys are configured.
-  //   auto   → LLM when the local brain draws a blank and an LLM is available;
-  //            otherwise local. Silent degradation is acceptable here.
-  //   always → LLM for everything except explicit commands. If no LLM is
-  //            available, or the call fails, tell the user — never degrade.
   const mode = settings.llmMode;
   const wantsLlm = mode === "off" ? false : mode === "always" ? !tookAction : localWasWeak;
   const plan = wantsLlm ? await planLlmStream(input, ctx) : null;
@@ -84,7 +146,7 @@ export async function POST(req: Request) {
   if (strict && wantsLlm && !plan) {
     const reply =
       "Reasoning mode is set to “Always”, but no AI model is available. " +
-      "Open Setup to select a running Ollama model or connect OpenRouter, or switch the mode to “Auto”.";
+      "Configure Hermes, select a running Ollama model, or switch the mode to Auto.";
     await persistExchange(input, reply, "llm", []);
     return NextResponse.json({
       reply,
@@ -95,7 +157,6 @@ export async function POST(req: Request) {
     });
   }
 
-  // ---- Local path: instant JSON, unchanged contract. ----
   if (!plan) {
     await applyActions(local);
     await persistExchange(input, local.reply, local.engine, local.usedKnowledge);
@@ -107,7 +168,6 @@ export async function POST(req: Request) {
     });
   }
 
-  // ---- LLM path: stream tokens as they arrive. ----
   const usedKnowledge = plan.hits.map((h) => ({ id: h.id, title: h.title }));
   const encoder = new TextEncoder();
   const run = plan.run;
@@ -123,9 +183,8 @@ export async function POST(req: Request) {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "stream failed";
         if (!full) {
-          // "always" must never quietly hand the turn to the local brain.
           const fallback = strict
-            ? `I couldn't reach the model (${msg}). Reasoning is set to “Always”, so I won't answer from the local brain — check your Ollama or OpenRouter settings, or try again.`
+            ? `I couldn't reach the model (${msg}). Reasoning is set to Always, so I won't answer from the local brain.`
             : `I couldn't reach the model (${msg}). ${local.reply}`;
           full += fallback;
           controller.enqueue(encoder.encode(fallback));
@@ -135,7 +194,7 @@ export async function POST(req: Request) {
         try {
           await persistExchange(input, reply, "llm", usedKnowledge);
         } catch {
-          /* never let a DB hiccup break the stream close */
+          // Never let a DB hiccup break stream close.
         }
         controller.close();
       }
@@ -149,7 +208,6 @@ export async function POST(req: Request) {
       "X-Accel-Buffering": "no",
       "X-Engine": "llm",
       "X-Provider": plan.provider,
-      // Header values must be ASCII — encode the JSON payload.
       "X-Used-Knowledge": encodeURIComponent(JSON.stringify(usedKnowledge)),
     },
   });
