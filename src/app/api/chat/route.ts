@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { messages, tasks, knowledge } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getMessages, getKnowledge, getTasks } from "@/lib/store";
-import { hermesConfigured, streamHermes, type HermesHistoryMessage, type KnowledgeEntry, type TaskEntry } from "@/lib/hermes";
+import { getMessages, getKnowledge, getTasks, getSettings } from "@/lib/store";
+import { hermesConfigured, streamHermes, streamOpenRouter, type HermesHistoryMessage, type KnowledgeEntry, type TaskEntry } from "@/lib/hermes";
 
 export const dynamic = "force-dynamic";
 
@@ -39,12 +39,13 @@ function toHermesHistory(
     .filter((m) => m.content.trim().length > 0);
 }
 
-async function hermesResponse(
+/** Buffer a Hermes stream into a string. Returns empty string on failure. */
+async function hermesBuffer(
   input: string,
   history: Awaited<ReturnType<typeof getMessages>>,
   kb: Awaited<ReturnType<typeof getKnowledge>>,
   taskRows: Awaited<ReturnType<typeof getTasks>>,
-) {
+): Promise<string> {
   const source = await streamHermes(
     input,
     toHermesHistory(history),
@@ -52,38 +53,20 @@ async function hermesResponse(
     taskRows as TaskEntry[],
   );
   const reader = source.getReader();
-  const encoder = new TextEncoder();
   const decoder = new TextDecoder();
-
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      let full = "";
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          const text = decoder.decode(value, { stream: true });
-          if (!text) continue;
-          full += text;
-          controller.enqueue(encoder.encode(text));
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Hermes stream failed";
-        if (!full) controller.enqueue(encoder.encode(`Hermes connection failed: ${msg}`));
-      } finally {
-        const reply = full.trim();
-        if (reply) {
-          try {
-            await persistExchange(input, reply, "hermes");
-          } catch {
-            // A DB failure must not break the response stream.
-          }
-        }
-        reader.releaseLock();
-        controller.close();
-      }
-    },
-  });
+  let full = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      full += decoder.decode(value, { stream: true });
+    }
+  } catch (err) {
+    console.error("Hermes buffer error:", err);
+  } finally {
+    reader.releaseLock();
+  }
+  return full.trim();
 }
 
 export async function POST(req: Request) {
@@ -97,30 +80,81 @@ export async function POST(req: Request) {
     getTasks(),
   ]);
 
-  if (hermesConfigured()) {
+  const settings = await getSettings();
+  let reply = "";
+  let engine = "";
+  let provider = "";
+
+  // OpenRouter first (when key + model are configured)
+  if (settings.openrouterKey && settings.openrouterModel) {
     try {
-      const stream = await hermesResponse(input, history, kb, taskRows);
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache, no-transform",
-          "X-Accel-Buffering": "no",
-          "X-Engine": "hermes",
-          "X-Provider": "hermes-agent",
-          "X-Used-Knowledge": encodeURIComponent("[]"),
-        },
-      });
-    } catch (err) {
-      console.error("Hermes unavailable:", err);
-      return NextResponse.json(
-        { reply: "Hermes backend is not reachable. Is TALA Hermes running on port 8650?", engine: "error" },
-        { status: 502 }
+      const orStream = await streamOpenRouter(
+        input,
+        toHermesHistory(history),
+        kb as KnowledgeEntry[],
+        taskRows as TaskEntry[],
+        settings.openrouterKey,
+        settings.openrouterModel,
+        settings,
       );
+      const reader = orStream.getReader();
+      const decoder = new TextDecoder();
+      let orFull = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        orFull += decoder.decode(value, { stream: true });
+      }
+      reader.releaseLock();
+      reply = orFull.trim();
+      engine = "openrouter";
+      provider = settings.openrouterModel;
+    } catch (err) {
+      console.error("OpenRouter failed:", err);
     }
   }
 
-  return NextResponse.json(
-    { reply: "Hermes is not configured. Check your TALA Hermes profile.", engine: "error" },
-    { status: 503 }
-  );
+  // Hermes fallback
+  if (!reply && hermesConfigured()) {
+    try {
+      reply = await hermesBuffer(input, history, kb, taskRows);
+      if (reply) {
+        engine = "hermes";
+        provider = "hermes-agent";
+      }
+    } catch (err) {
+      console.error("Hermes failed:", err);
+    }
+  }
+
+  if (!reply) {
+    return NextResponse.json(
+      { reply: "No AI backend responded. Configure Hermes or add your OpenRouter key + model in Settings.", engine: "error" },
+      { status: 503 }
+    );
+  }
+
+  // Persist the exchange
+  try {
+    await persistExchange(input, reply, engine);
+  } catch {}
+
+  // Stream the buffered reply back to the client
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(reply));
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+      "X-Engine": engine,
+      "X-Provider": provider,
+    },
+  });
 }

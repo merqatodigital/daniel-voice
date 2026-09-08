@@ -201,6 +201,43 @@ export default function SettingsPanel({ settings, onChange, onSave }: Props) {
       <VoiceLab settings={settings} onChange={onChange} />
 
       <section className="glass rounded-2xl p-4 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold tracking-wide text-cyan-200 hud-text">OpenRouter</h2>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            Your personal API key. Used for chat completions. Never shared.
+          </p>
+        </div>
+        <Field label="API Key" hint="Get one free at openrouter.ai/keys">
+          <input
+            className={input}
+            type="password"
+            value={settings.openrouterKey}
+            onChange={(e) => onChange({ openrouterKey: e.target.value })}
+            placeholder="sk-or-v1-..."
+          />
+        </Field>
+        <Field label="Model">
+          <select
+            className={input}
+            value={settings.openrouterModel}
+            onChange={(e) => onChange({ openrouterModel: e.target.value })}
+          >
+            <option value="">— pick a model —</option>
+            <optgroup label="Free models">
+              <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (free)</option>
+              <option value="google/gemma-4-31b-it:free">Gemma 4 31B (free)</option>
+              <option value="nvidia/nemotron-3.5-lightning:free">Nemotron 3.5 Lightning (free)</option>
+              <option value="qwen/qwen-2.5-7b-instruct:free">Qwen 2.5 7B (free)</option>
+            </optgroup>
+            <optgroup label="Paid — small & cheap">
+              <option value="openai/gpt-4o-mini">GPT-4o mini</option>
+              <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
+            </optgroup>
+          </select>
+        </Field>
+      </section>
+
+      <section className="glass rounded-2xl p-4 space-y-4">
         <h2 className="text-sm font-semibold tracking-wide text-cyan-200 hud-text">Preferences</h2>
         <Field label="Time zone" hint="IANA name, e.g. Europe/London. Use 'local' for device time.">
           <input

@@ -20,6 +20,8 @@ const SEED: Record<string, unknown> = {
   silenceTimeoutSec: 45,
   timezone: "local",
   units: "metric",
+  openrouterKey: "",
+  openrouterModel: "",
 };
 
 export async function getSettings() {

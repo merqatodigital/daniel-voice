@@ -305,6 +305,10 @@ export default function Home() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settingsRef.current),
     });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error((j.error ?? `HTTP ${r.status}`) as string);
+    }
     const j = await r.json();
     if (j.settings) setSettings({ ...DEFAULT_SETTINGS, ...j.settings });
   }, []);

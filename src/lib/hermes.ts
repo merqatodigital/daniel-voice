@@ -12,6 +12,88 @@ export function hermesConfigured() {
   return true;
 }
 
+/* ------------------------------------------------------------------ */
+/*  OpenRouter fallback (user's own API key, any model)                */
+/* ------------------------------------------------------------------ */
+
+export async function streamOpenRouter(
+  input: string,
+  history: HermesHistoryMessage[],
+  knowledge: KnowledgeEntry[],
+  tasks: TaskEntry[],
+  apiKey: string,
+  model: string,
+  settings?: { agentName?: string; userName?: string; attitude?: string; customAttitude?: string },
+): Promise<ReadableStream<Uint8Array>> {
+  const context = buildContext(knowledge, tasks);
+  const name = settings?.agentName || "TALA";
+  const user = settings?.userName || "Sir";
+  const systemMsg = [
+    `You are ${name}, a personal AI assistant for ${user}. Be concise and helpful.`,
+    settings?.attitude === "custom" && settings?.customAttitude
+      ? settings.customAttitude
+      : settings?.attitude === "snarky"
+        ? "You are witty, sharp, and a little sarcastic — but always helpful."
+        : settings?.attitude === "formal"
+          ? "You are polished and professional."
+          : "You are warm, friendly, and attentive.",
+    context || "",
+  ].filter(Boolean).join("\n\n");
+
+  const messages: { role: string; content: string }[] = [
+    { role: "system", content: systemMsg },
+    ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
+    { role: "user", content: input },
+  ];
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://tala.local",
+      "X-Title": "TALA",
+    },
+    body: JSON.stringify({ model, messages, stream: true }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenRouter ${res.status}: ${err}`);
+  }
+
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      let buffer = "";
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop()!;
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6).trim();
+            if (data === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) controller.enqueue(encoder.encode(delta));
+            } catch {}
+          }
+        }
+      } finally {
+        controller.close();
+      }
+    },
+  });
+}
+
 type RpcFrame = {
   id?: number;
   method?: string;

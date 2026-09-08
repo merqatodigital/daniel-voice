@@ -19,6 +19,9 @@ export type ClientSettings = {
   silenceTimeoutSec: number;
   timezone: string;
   units: "metric" | "imperial";
+  // --- OpenRouter (user's own key, free or paid model of their choice) ---
+  openrouterKey: string;
+  openrouterModel: string;
 };
 
 export type ChatMsg = {
@@ -62,4 +65,6 @@ export const DEFAULT_SETTINGS: ClientSettings = {
   silenceTimeoutSec: 45,
   timezone: "local",
   units: "metric",
+  openrouterKey: "",
+  openrouterModel: "",
 };
