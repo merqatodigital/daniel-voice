@@ -9,6 +9,11 @@ export type TaskEntry = { id: number; title: string; done: boolean };
 const HERMES_URL = "http://127.0.0.1:8650";
 
 export function hermesConfigured() {
+  // On Vercel/serverless, no local Hermes — check hostname
+  if (typeof window === "undefined") {
+    // Server-side: assume Hermes only if running locally
+    return true; // We try it and catch the timeout
+  }
   return true;
 }
 
@@ -110,7 +115,7 @@ type RpcFrame = {
 };
 
 async function getWsUrl() {
-  const res = await fetch(HERMES_URL, { cache: "no-store" });
+  const res = await fetch(HERMES_URL, { cache: "no-store", signal: AbortSignal.timeout(3000) });
   if (!res.ok) throw new Error(`Hermes returned ${res.status}`);
 
   const html = await res.text();
