@@ -180,6 +180,32 @@ export default function VoiceLab({ settings, onChange }: Props) {
       setPreviewSecs(estimateSeconds(text, settings.voiceRate));
       let noVoice = false;
       try {
+        // Ensure the engine is ready before speaking — Kokoro needs model load,
+        // Piper needs download, system just needs voices.
+        if (engine === "kokoro" && !kokoroReady) {
+          setStatus({ stage: "loading", label: "Loading Kokoro 82M…" });
+          await ensureKokoro((s) => setStatus(s));
+          setKokoroReady(true);
+        }
+        if (engine === "piper" && !piperStored.has(id)) {
+          setStatus({ stage: "loading", label: `Downloading ${name}…` });
+          await piperDownload(id, (s) => setStatus(s));
+          setPiperStored(new Set(await piperStoredVoices()));
+        }
+        if (engine === "system" && typeof window !== "undefined" && "speechSynthesis" in window) {
+          // Make sure voices are populated before we try to speak
+          await new Promise<void>((resolve) => {
+            const synth = window.speechSynthesis;
+            const existing = synth.getVoices();
+            if (existing.length > 0) return resolve();
+            const onLoad = () => {
+              window.speechSynthesis.removeEventListener("voiceschanged", onLoad);
+              resolve();
+            };
+            window.speechSynthesis.addEventListener("voiceschanged", onLoad);
+            setTimeout(resolve, 1500);
+          });
+        }
         await speak({
           engine,
           voiceId: id,
@@ -211,7 +237,7 @@ export default function VoiceLab({ settings, onChange }: Props) {
         if (noVoice) show("No voice found for this language — try English.", "warn");
       }
     },
-    [previewing, engine, lang, settings, rememberUse, show],
+    [previewing, engine, lang, settings, rememberUse, show, kokoroReady, piperStored],
   );
 
   /* ---------------- derived lists ---------------- */
@@ -266,7 +292,7 @@ export default function VoiceLab({ settings, onChange }: Props) {
   }, [engine, lang, settings.voiceGender, systemVoices]);
 
   const busy = status.stage === "loading" || previewing !== null;
-  const activeId = engine === "system" ? settings.voiceURI : settings.voiceId || DEFAULT_VOICE[engine];
+  const activeId = engine === "system" ? (settings.voiceURI || "auto") : settings.voiceId || DEFAULT_VOICE[engine];
 
   /* ---------------- render helpers ---------------- */
 
@@ -313,7 +339,13 @@ export default function VoiceLab({ settings, onChange }: Props) {
               role="radio"
               aria-checked={on}
               aria-label={`${i.label} engine, ${i.download}`}
-              onClick={() => onChange({ voiceEngine: e, voiceId: e === "system" ? "" : DEFAULT_VOICE[e] })}
+              onClick={() => {
+                onChange({ voiceEngine: e, voiceId: e === "system" ? "" : DEFAULT_VOICE[e] });
+                if (e === "kokoro") {
+                  // Pre-warm Kokoro on engine select so the test button works immediately
+                  void ensureKokoro().catch(() => {});
+                }
+              }}
               className={`w-full rounded-xl border p-3 text-left transition ${
                 on ? "border-cyan-400/70 bg-cyan-400/10" : "border-slate-700/60 bg-slate-950/40"
               }`}

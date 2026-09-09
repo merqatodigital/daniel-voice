@@ -385,7 +385,7 @@ export default function Home() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+    <main className="mx-auto flex min-h-dvh flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))] sm:max-w-md">
       <header className="flex items-center justify-between pb-3">
         <div>
           <h1 className="text-lg font-semibold tracking-[0.25em] text-cyan-200 hud-text">
@@ -443,17 +443,17 @@ export default function Home() {
       )}
 
       <div className="flex-1 overflow-hidden">
-        {tab === "talk" && (
-          <div className="flex h-full flex-col">
-            <div className="py-2">
-              <Orb state={orbState} onTap={onOrbTap} label={orbLabel} />
-            </div>
+      {tab === "talk" && (
+        <div className="flex h-full flex-col">
+          <div className="py-2">
+            <Orb state={orbState} onTap={onOrbTap} label={orbLabel} />
+          </div>
 
-            <div
-              ref={scrollRef}
-              className="flex-1 space-y-3 overflow-y-auto pb-40"
-              style={{ maxHeight: "calc(100dvh - 22rem)" }}
-            >
+          <div
+            ref={scrollRef}
+            className="flex-1 space-y-3 overflow-y-auto pb-40"
+            style={{ maxHeight: "calc(100dvh - 18rem)" }}
+          >
               {messages.length === 0 && (
                 <div className="glass rounded-2xl p-4 text-sm text-slate-300">
                   <p className="text-cyan-200">Systems online, {settings.userName}.</p>
@@ -507,7 +507,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] mx-auto max-w-md px-4">
+            <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] mx-auto max-w-md px-4 sm:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]">
               <div className="glass flex items-center gap-2 rounded-2xl p-2">
                 <input
                   value={draft}
@@ -548,8 +548,8 @@ export default function Home() {
         )}
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-cyan-400/15 bg-[#04070d]/90 px-4 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <div className="flex justify-between py-2">
+      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md border-t border-cyan-400/15 bg-[#04070d]/90 px-4 pt-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
+        <div className="flex justify-between py-1.5">
           {TABS.map((t) => (
             <button
               key={t.key}
@@ -558,7 +558,7 @@ export default function Home() {
                 tab === t.key ? "text-cyan-300" : "text-slate-500"
               }`}
             >
-              <span className="text-base leading-none">{t.icon}</span>
+              <span className="text-base leading-none text-lg">{t.icon}</span>
               {t.label}
             </button>
           ))}
