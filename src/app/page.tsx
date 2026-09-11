@@ -194,14 +194,24 @@ export default function Home() {
             setMessages((m) => m.map((msg) => (msg.id === id ? { ...msg, content: reply } : msg)));
           }
         } else {
-          // ---- Instant JSON response (incl. API errors). ----
-          const j = await r.json();
-          reply = !r.ok && j.error ? j.error : j.reply ?? "Connection issue. Try again.";
+          // ---- JSON response (API errors, local brain, etc.). ----
+          let j: Record<string, unknown> = {};
+          try {
+            const text = await r.text();
+            if (text) j = JSON.parse(text);
+          } catch {
+            // Response was not valid JSON (e.g. 500 error page)
+          }
+          if (!r.ok) {
+            reply = (j.error as string) ?? `Request failed (HTTP ${r.status}). Try again.`;
+          } else {
+            reply = (j.reply as string) ?? "Connection issue. Try again.";
+          }
           setMessages((m) => [
             ...m,
-            { id: `a${Date.now()}`, role: "agent", content: reply, engine: j.engine, used: j.usedKnowledge },
+            { id: `a${Date.now()}`, role: "agent", content: reply, engine: j.engine as string, used: j.usedKnowledge as { id: number; title: string }[] },
           ]);
-          if (j.tasks) setTasks(j.tasks);
+          if (j.tasks) setTasks(j.tasks as TaskItem[]);
         }
 
         // Speak only once the full reply is assembled.
