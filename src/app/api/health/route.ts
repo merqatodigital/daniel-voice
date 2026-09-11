@@ -19,7 +19,6 @@ async function checkOpenRouter(
 ): Promise<{ available: boolean; keySet: boolean; balanceOK: boolean; modelOk: boolean }> {
   if (!apiKey) return { available: false, keySet: false, balanceOK: false, modelOk: false };
   try {
-    // Test with minimal request
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -45,16 +44,18 @@ async function checkOpenRouter(
 
 export async function GET() {
   const started = Date.now();
-  const dbOk = await checkDb();
-
-  // Get settings to check OpenRouter config
+  let dbOk = false;
   let openrouter = { available: false, keySet: false, balanceOK: false, modelOk: false };
+
   try {
+    dbOk = await checkDb();
     const [s] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
     if (s?.openrouterKey) {
       openrouter = await checkOpenRouter(s.openrouterKey, s.openrouterModel);
     }
-  } catch {}
+  } catch {
+    // No DB — still check OpenRouter if possible
+  }
 
   return Response.json(
     {

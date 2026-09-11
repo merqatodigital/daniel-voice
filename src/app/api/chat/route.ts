@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { messages, tasks, knowledge } from '@/db/schema';
+import { messages } from '@/db/schema';
 import { getMessages, getKnowledge, getTasks, getSettings } from '@/lib/store';
 import { streamChat } from '@/lib/openrouter';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return NextResponse.json({ messages: await getMessages() });
+  try {
+    const msgs = await getMessages();
+    return NextResponse.json({ messages: msgs });
+  } catch {
+    return NextResponse.json({ messages: [] });
+  }
 }
 
 export async function DELETE() {
-  await db.delete(messages);
+  try {
+    await db.delete(messages);
+  } catch {}
   return NextResponse.json({ ok: true });
 }
 
