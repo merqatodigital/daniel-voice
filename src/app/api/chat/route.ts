@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
-import { db } from "@/db";
-import { messages, tasks, knowledge } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { getMessages, getKnowledge, getTasks, getSettings } from "@/lib/store";
-import { hermesConfigured, streamHermes, streamOpenRouter, type HermesHistoryMessage, type KnowledgeEntry, type TaskEntry } from "@/lib/hermes";
+import { NextResponse } from 'next/server';
+import { db } from '@/db';
+import { messages, tasks, knowledge } from '@/db/schema';
+import { getMessages, getKnowledge, getTasks, getSettings } from '@/lib/store';
+import { streamChat } from '@/lib/openrouter';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   return NextResponse.json({ messages: await getMessages() });
@@ -16,65 +15,29 @@ export async function DELETE() {
   return NextResponse.json({ ok: true });
 }
 
-async function persistExchange(
-  input: string,
-  reply: string,
-  engine: string,
-) {
-  await db.insert(messages).values([
-    { role: "user", content: input },
-    { role: "agent", content: reply, meta: { engine } },
-  ]);
+async function persistExchange(input: string, reply: string, engine: string) {
+  try {
+    await db.insert(messages).values([
+      { role: 'user', content: input },
+      { role: 'agent', content: reply, meta: { engine } },
+    ]);
+  } catch {}
 }
 
-function toHermesHistory(
-  history: Awaited<ReturnType<typeof getMessages>>,
-): HermesHistoryMessage[] {
+function toChatHistory(history: Awaited<ReturnType<typeof getMessages>>) {
   return history
     .slice(-20)
     .map((m) => ({
-      role: m.role === "agent" ? ("assistant" as const) : ("user" as const),
+      role: m.role === 'agent' ? ('assistant' as const) : ('user' as const),
       content: m.content,
     }))
     .filter((m) => m.content.trim().length > 0);
 }
 
-/** Buffer a Hermes stream into a string. Returns empty string on failure. */
-async function hermesBuffer(
-  input: string,
-  history: Awaited<ReturnType<typeof getMessages>>,
-  kb: Awaited<ReturnType<typeof getKnowledge>>,
-  taskRows: Awaited<ReturnType<typeof getTasks>>,
-  settings: Awaited<ReturnType<typeof getSettings>>,
-): Promise<string> {
-  const source = await streamHermes(
-    input,
-    toHermesHistory(history),
-    kb as KnowledgeEntry[],
-    taskRows as TaskEntry[],
-    settings,
-  );
-  const reader = source.getReader();
-  const decoder = new TextDecoder();
-  let full = "";
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      full += decoder.decode(value, { stream: true });
-    }
-  } catch (err) {
-    console.error("Hermes buffer error:", err);
-  } finally {
-    reader.releaseLock();
-  }
-  return full.trim();
-}
-
 export async function POST(req: Request) {
   const body = (await req.json()) as { input?: string };
-  const input = (body.input ?? "").trim();
-  if (!input) return NextResponse.json({ error: "empty input" }, { status: 400 });
+  const input = (body.input ?? '').trim();
+  if (!input) return NextResponse.json({ error: 'empty input' }, { status: 400 });
 
   const [history, kb, taskRows] = await Promise.all([
     getMessages(20),
@@ -83,80 +46,78 @@ export async function POST(req: Request) {
   ]);
 
   const settings = await getSettings();
-  let reply = "";
-  let engine = "";
-  let provider = "";
 
-  // OpenRouter first (when key + model are configured)
-  if (settings.openrouterKey && settings.openrouterModel) {
-    try {
-      const orStream = await streamOpenRouter(
-        input,
-        toHermesHistory(history),
-        kb as KnowledgeEntry[],
-        taskRows as TaskEntry[],
-        settings.openrouterKey,
-        settings.openrouterModel,
-        settings,
-      );
-      const reader = orStream.getReader();
-      const decoder = new TextDecoder();
-      let orFull = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        orFull += decoder.decode(value, { stream: true });
-      }
-      reader.releaseLock();
-      reply = orFull.trim();
-      engine = "openrouter";
-      provider = settings.openrouterModel;
-    } catch (err) {
-      console.error("OpenRouter failed:", err);
-    }
-  }
-
-  // Hermes fallback
-  if (!reply && hermesConfigured()) {
-    try {
-      reply = await hermesBuffer(input, history, kb, taskRows, settings);
-      if (reply) {
-        engine = "hermes";
-        provider = "hermes-agent";
-      }
-    } catch (err) {
-      console.error("Hermes failed:", err);
-    }
-  }
-
-  if (!reply) {
+  if (!settings.openrouterKey || !settings.openrouterModel) {
     return NextResponse.json(
-      { reply: "No AI backend responded. Configure Hermes or add your OpenRouter key + model in Settings.", engine: "error" },
-      { status: 503 }
+      { error: 'Configure your OpenRouter key and model in Setup → AI Model.' },
+      { status: 400 },
     );
   }
 
-  // Persist the exchange
-  try {
-    await persistExchange(input, reply, engine);
-  } catch {}
+  // Get raw SSE stream from OpenRouter
+  const source = await streamChat(
+    input,
+    toChatHistory(history),
+    kb as any[],
+    taskRows as any[],
+    settings.openrouterKey,
+    settings.openrouterModel,
+    settings,
+  );
 
-  // Stream the buffered reply back to the client
-  const encoder = new TextEncoder();
+  // Parse SSE on the server, stream clean text deltas to client
+  const reader = source.getReader();
+  const decoder = new TextDecoder();
+  let reply = '';
+  let buffer = '';
+
   const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(encoder.encode(reply));
-      controller.close();
+    async start(controller) {
+      const encoder = new TextEncoder();
+      try {
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop()!;
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') break;
+            try {
+              const parsed = JSON.parse(data);
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                reply += delta;
+                controller.enqueue(encoder.encode(delta));
+              }
+            } catch {}
+          }
+        }
+      } catch (err) {
+        controller.error(err instanceof Error ? err : new Error(String(err)));
+        return;
+      } finally {
+        controller.close();
+        reader.releaseLock();
+      }
+
+      // Persist after streaming completes
+      reply = reply.trim();
+      if (reply) await persistExchange(input, reply, 'openrouter');
     },
   });
 
   return new Response(stream, {
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache, no-transform",
-      "X-Accel-Buffering": "no",
-      "X-Engine": engine,
-      "X-Provider": provider,
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+      'X-Engine': 'openrouter',
+      'X-Model': settings.openrouterModel,
     },
   });
 }

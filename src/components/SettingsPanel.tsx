@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ATTITUDE_LIST } from "@/lib/personas";
 import VoiceLab from "@/components/VoiceLab";
+import ModelPicker from "@/components/ModelPicker";
 import type { ClientSettings } from "@/lib/clientTypes";
 
 type Props = {
@@ -124,7 +125,7 @@ export default function SettingsPanel({ settings, onChange, onSave }: Props) {
                 key: "continuous",
                 emoji: "🔁",
                 label: "Continuous (hands-free)",
-                blurb: "Stays open after every reply. Say “stop conversation” or tap the orb to end.",
+                blurb: "Stays open after every reply. Say \u201Cstop conversation\u201D or tap the orb to end.",
               },
               {
                 key: "wake",
@@ -191,8 +192,8 @@ export default function SettingsPanel({ settings, onChange, onSave }: Props) {
         <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-3">
           <p className="text-[10px] uppercase tracking-[0.16em] text-cyan-300/80">Ending a call</p>
           <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
-            Say any of: <em>“stop conversation”</em>, <em>“stop listening”</em>,{" "}
-            <em>“go to sleep”</em>, <em>“that will be all”</em> — or just tap the orb / the{" "}
+            Say any of: <em>"stop conversation"</em>, <em>"stop listening"</em>,{" "}
+            <em>"go to sleep"</em>, <em>"that will be all"</em> — or just tap the orb / the{" "}
             <strong className="text-emerald-300">End</strong> button.
           </p>
         </div>
@@ -200,42 +201,7 @@ export default function SettingsPanel({ settings, onChange, onSave }: Props) {
 
       <VoiceLab settings={settings} onChange={onChange} />
 
-      <section className="glass rounded-2xl p-4 space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold tracking-wide text-cyan-200 hud-text">OpenRouter</h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">
-            Your personal API key. Used for chat completions. Never shared.
-          </p>
-        </div>
-        <Field label="API Key" hint="Get one free at openrouter.ai/keys">
-          <input
-            className={input}
-            type="password"
-            value={settings.openrouterKey}
-            onChange={(e) => onChange({ openrouterKey: e.target.value })}
-            placeholder="sk-or-v1-..."
-          />
-        </Field>
-        <Field label="Model">
-          <select
-            className={input}
-            value={settings.openrouterModel}
-            onChange={(e) => onChange({ openrouterModel: e.target.value })}
-          >
-            <option value="">— pick a model —</option>
-            <optgroup label="Free models">
-              <option value="openrouter/free">Auto (OpenRouter picks best free model)</option>
-              <option value="google/gemma-4-31b-it:free">Gemma 4 31B (free)</option>
-              <option value="google/gemma-4-26b-a4b-it:free">Gemma 4 26B (free)</option>
-              <option value="nvidia/nemotron-3.5-lightning:free">Nemotron 3.5 Lightning (free)</option>
-            </optgroup>
-            <optgroup label="Paid — small & cheap">
-              <option value="openai/gpt-4o-mini">GPT-4o mini</option>
-              <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
-            </optgroup>
-          </select>
-        </Field>
-      </section>
+      <ModelPicker settings={settings} onChange={onChange} />
 
       <section className="glass rounded-2xl p-4 space-y-4">
         <h2 className="text-sm font-semibold tracking-wide text-cyan-200 hud-text">Preferences</h2>
@@ -262,9 +228,6 @@ export default function SettingsPanel({ settings, onChange, onSave }: Props) {
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-slate-500">
-          TALA runs on Hermes Agent. Model, memory, and reasoning are configured in the TALA Hermes profile — not here.
-        </p>
       </section>
 
       <button

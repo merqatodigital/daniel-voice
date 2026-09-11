@@ -1,29 +1,31 @@
-import "dotenv/config";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { Pool } from 'pg';
+import * as schema from './schema';
 
-const rawUrl = process.env.DATABASE_URL;
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  '';
 
-if (!rawUrl) {
-  console.warn("DATABASE_URL not set — DB queries will fail at runtime");
+let pool: Pool | null = null;
+let dbInstance: ReturnType<typeof drizzle> | null = null;
+
+function getDb() {
+  if (!connectionString) {
+    throw new Error(
+      'No database connection string. Set DATABASE_URL, POSTGRES_URL, or POSTGRES_URL_NON_POOLING.'
+    );
+  }
+  if (!dbInstance) {
+    pool = new Pool({ connectionString });
+    dbInstance = drizzle(pool, { schema });
+  }
+  return dbInstance;
 }
 
-const globalForDb = globalThis as typeof globalThis & {
-  __arenaNextJsPostgresqlPool?: Pool;
-};
-
-export const pool =
-  globalForDb.__arenaNextJsPostgresqlPool ??
-  new Pool({
-    connectionString: rawUrl,
-    ssl: {
-      rejectUnauthorized: false,
-      servername: "db.bsuscgghuxolprxqvsro.supabase.co",
-    },
-  });
-
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.__arenaNextJsPostgresqlPool = pool;
-}
-
-export const db = drizzle(pool);
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_, prop) {
+    return getDb()[prop as keyof typeof dbInstance];
+  },
+});

@@ -5,9 +5,12 @@
     "dev": "next dev",
     "build": "next build",
     "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "vercel-build": "drizzle-kit migrate && next build"
   },
   "dependencies": {
     "@mintplex-labs/piper-tts-web": "^1.0.5",

@@ -314,8 +314,11 @@ export default function Home() {
   }, []);
 
   const modelLabel = useMemo(() => {
-    return "Hermes Agent";
-  }, []);
+    if (!settings.openrouterModel) return "No model selected";
+    const m = settings.openrouterModel;
+    const short = m.split('/').pop() ?? m;
+    return short.replace(':free', ' (free)');
+  }, [settings.openrouterModel]);
 
   const voiceSummary = useMemo(() => {
     const name =
