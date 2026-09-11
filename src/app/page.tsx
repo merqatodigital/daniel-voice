@@ -177,16 +177,21 @@ export default function Home() {
 
           const reader = r.body.getReader();
           const decoder = new TextDecoder();
+          let lastRender = 0;
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
             if (!chunk) continue;
             reply += chunk;
-            const snapshot = reply;
-            setMessages((m) =>
-              m.map((msg) => (msg.id === id ? { ...msg, content: snapshot } : msg)),
-            );
+            const now = Date.now();
+            if (now - lastRender > 30 || done) {
+              const snapshot = reply;
+              setMessages((m) =>
+                m.map((msg) => (msg.id === id ? { ...msg, content: snapshot } : msg)),
+              );
+              lastRender = now;
+            }
           }
           reply = reply.trim();
           if (!reply) {

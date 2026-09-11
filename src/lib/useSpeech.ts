@@ -83,12 +83,10 @@ export function useTts() {
       setStatus({ stage: "error", message: err instanceof Error ? err.message : "TTS failed" });
       setSpeaking(false);
     } finally {
-      if (status.stage !== "error") {
-        setSpeaking(false);
-        setStatus({ stage: "idle" });
-      }
+      setSpeaking(false);
+      setStatus({ stage: "idle" });
     }
-  }, [status]);
+  }, []);
 
   const stop = useCallback(() => {
     stopAudio();

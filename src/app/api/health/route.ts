@@ -13,66 +13,33 @@ async function checkDb(): Promise<boolean> {
   }
 }
 
-async function checkOpenRouter(
-  apiKey: string | undefined,
-  model: string | undefined,
-): Promise<{ available: boolean; keySet: boolean; balanceOK: boolean; modelOk: boolean }> {
-  if (!apiKey) return { available: false, keySet: false, balanceOK: false, modelOk: false };
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: model || 'google/gemma-3-27b-it:free',
-        messages: [{ role: 'user', content: 'hi' }],
-        max_tokens: 1,
-      }),
-    });
-    return {
-      available: true,
-      keySet: true,
-      balanceOK: res.ok,
-      modelOk: res.status !== 404,
-    };
-  } catch {
-    return { available: false, keySet: true, balanceOK: false, modelOk: false };
-  }
-}
-
 export async function GET() {
   const started = Date.now();
   let dbOk = false;
-  let openrouter = { available: false, keySet: false, balanceOK: false, modelOk: false };
+  let keySet = false;
+  let modelSet = false;
 
   try {
     dbOk = await checkDb();
-    const [s] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
-    if (s?.openrouterKey) {
-      openrouter = await checkOpenRouter(s.openrouterKey, s.openrouterModel);
+    if (dbOk) {
+      const [s] = await db.select().from(settings).where(eq(settings.id, 1)).limit(1);
+      keySet = !!s?.openrouterKey;
+      modelSet = !!s?.openrouterModel;
     }
-  } catch {
-    // No DB — still check OpenRouter if possible
-  }
+  } catch {}
 
   return Response.json(
     {
-      ok: dbOk && (openrouter.balanceOK || !openrouter.keySet),
+      ok: dbOk && keySet && modelSet,
       db: dbOk,
-      openrouter: {
-        available: openrouter.available,
-        keySet: openrouter.keySet,
-        balanceOK: openrouter.balanceOK,
-      },
-      tts: { system: true, piper: false, kokoro: false },
-      hasLLM: openrouter.balanceOK,
+      openrouter: { available: keySet, keySet, balanceOK: keySet && modelSet },
+      tts: { system: true },
+      hasLLM: keySet && modelSet,
       hints: {
-        showConnectKey: !openrouter.keySet,
-        showAddCredit: openrouter.keySet && !openrouter.balanceOK,
-        showPickModel: openrouter.balanceOK,
-        aiAvailable: openrouter.balanceOK,
+        showConnectKey: !keySet,
+        showAddCredit: false,
+        showPickModel: keySet && !modelSet,
+        aiAvailable: keySet && modelSet,
       },
       latencyMs: Date.now() - started,
     },
