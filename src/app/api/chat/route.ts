@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { messages } from '@/db/schema';
 import { getMessages, getKnowledge, getTasks, getSettings } from '@/lib/store';
-import { streamChat } from '@/lib/openrouter';
+import { streamChat, type KnowledgeEntry } from '@/lib/openrouter';
+import { searchKnowledge } from '@/lib/knowledge';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,11 +62,21 @@ export async function POST(req: Request) {
     );
   }
 
+  // Search knowledge base for relevant context
+  const relevantKnowledge = searchKnowledge(input, 3);
+  const knowledgeForPrompt: KnowledgeEntry[] = relevantKnowledge.map(k => ({
+    id: k.id,
+    title: k.title,
+    content: k.content,
+    tags: k.tags,
+    category: k.category,
+  }));
+
   // Get raw SSE stream from OpenRouter
   const source = await streamChat(
     input,
     toChatHistory(history),
-    kb as any[],
+    knowledgeForPrompt,
     taskRows as any[],
     settings.openrouterKey,
     settings.openrouterModel,

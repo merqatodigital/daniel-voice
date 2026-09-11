@@ -10,7 +10,7 @@ export type ChatHistoryMessage = {
   content: string;
 };
 
-export type KnowledgeEntry = { id: number; title: string; content: string; tags: string };
+export type KnowledgeEntry = { id: string; title: string; content: string; tags: string[]; category?: string };
 export type TaskEntry = { id: number; title: string; done: boolean };
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -27,6 +27,7 @@ export function buildSystemPrompt(
   },
   knowledge: KnowledgeEntry[],
   tasks: TaskEntry[],
+  userQuery?: string,
 ): string {
   const name = settings.agentName || 'TALA';
   const user = settings.userName || 'friend';
@@ -45,10 +46,9 @@ export function buildSystemPrompt(
   ];
 
   if (knowledge.length > 0) {
-    parts.push('KNOWLEDGE BASE (use this to answer questions):\n');
+    parts.push('\nKNOWLEDGE BASE (use this to answer questions):\n');
     for (const k of knowledge) {
-      parts.push(`- ${k.title}: ${k.content}`);
-      if (k.tags) parts.push(`  Tags: ${k.tags}`);
+      parts.push(`**${k.title}**\n${k.content}`);
     }
     parts.push('');
   }
@@ -84,7 +84,7 @@ export async function streamChat(
   model: string,
   settings: { agentName?: string; userName?: string; attitude?: string; customAttitude?: string },
 ): Promise<ReadableStream<Uint8Array>> {
-  const systemPrompt = buildSystemPrompt(settings, knowledge, tasks);
+  const systemPrompt = buildSystemPrompt(settings, knowledge, tasks, input);
 
   const messages = [
     { role: 'system', content: systemPrompt },
