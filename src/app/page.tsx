@@ -194,9 +194,9 @@ export default function Home() {
             setMessages((m) => m.map((msg) => (msg.id === id ? { ...msg, content: reply } : msg)));
           }
         } else {
-          // ---- Local brain: instant JSON. ----
+          // ---- Instant JSON response (incl. API errors). ----
           const j = await r.json();
-          reply = j.reply ?? "Connection issue. Try again.";
+          reply = !r.ok && j.error ? j.error : j.reply ?? "Connection issue. Try again.";
           setMessages((m) => [
             ...m,
             { id: `a${Date.now()}`, role: "agent", content: reply, engine: j.engine, used: j.usedKnowledge },
@@ -208,6 +208,12 @@ export default function Home() {
         if (settingsRef.current.speakReplies) {
           await say(reply, ttsConfig());
         }
+      } catch (err) {
+        const msg =
+          err instanceof Error && err.message
+            ? err.message
+            : "Something went wrong sending that. Try again.";
+        setMessages((m) => [...m, { id: `a${Date.now()}`, role: "agent", content: msg }]);
       } finally {
         setThinking(false);
         busyRef.current = false;

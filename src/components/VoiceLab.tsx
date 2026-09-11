@@ -32,7 +32,9 @@ type VoiceDl =
   | { state: "downloading"; pct?: number; label?: string }
   | { state: "error"; message: string };
 
-const ENGINES: VoiceEngine[] = ["system", "kokoro", "piper"];
+// https://github.com/rhasspy/piper -- disabled at runtime in tts/engine.ts
+// (Turbopack bundling issue), so don't offer it to users.
+const ENGINES: VoiceEngine[] = ["system", "kokoro"];
 type Gender = "all" | "male" | "female";
 
 const SAMPLE = (name: string) =>
